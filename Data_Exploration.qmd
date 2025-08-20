@@ -1,0 +1,794 @@
+---
+title: "ECGEDA"
+format: html
+editor: visual
+---
+
+## Data Exploration
+
+```{r}
+# Install packages
+install.packages("tidyverse", dependencies = TRUE)
+install.packages("data.table")
+install.packages("dplyr")
+
+# Download libraries
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+```
+
+### Loading the Data
+
+```{r}
+
+# Import the datasets
+
+A01_02 <- fread("A_01_02.yld")
+A03_04 <- fread("A_03_04.yld")
+B05_06 <- fread("B_05_06.yld")
+B07_08 <- fread("B_07_08.yld")
+C09_10 <- fread("C_09_10.yld")
+#C11_12 <- fread("C_11_12.yld")
+
+
+# Name the variables
+colnames(A01_02) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(A03_04) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(B05_06) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(B07_08) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(C09_10) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(C11_12) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+
+```
+
+### Sensor Signals by Port Over Time
+
+#### Participants 01 and 02
+
+The plots below show the signals across time for each port.
+
+```{r}
+ggplot(A01_02, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 0102",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all ports.
+
+```{r}
+# Convert Port to a factor for colour assignation
+A01_02$Port <- as.factor(A01_02$Port)
+
+# Zoom into a time window
+start_time <- 80 # in seconds
+end_time <- 85 # in seconds
+
+# Filter for time window
+filtered_data <- A01_02 %>%
+  dplyr::filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 0102 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- A01_02 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0
+plot_port(0, start_time = 50.00, end_time = 55.00) #ECG
+
+# Port 1
+plot_port(1, start_time = 50.00, end_time = 55.00) #EDA
+
+# Port 2
+plot_port(2, start_time = 50.00, end_time = 55.00) #ECG
+
+#Port 3
+plot_port(3, start_time = 50.00, end_time = 55.00) #EDA
+
+# Port 4
+plot_port(4, start_time = 50.00, end_time = 55.00) #Noise
+
+# Port 5
+plot_port(5, start_time = 50.00, end_time = 60.00) #Noise
+
+# Port 6
+plot_port(6, start_time = 50.00, end_time = 60.00) #Noise
+
+# Port 7
+plot_port(7, start_time = 50.00, end_time = 60.00) #Noise
+```
+
+Mean and standard deviation per plot.
+
+```{r}
+A01_02 %>% group_by(Port) %>%
+  summarise(mean = mean(Value), sd = sd(Value))
+```
+
+#### Participants 03 and 04
+
+```{r}
+ggplot(A03_04, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 0304",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all ports.
+
+```{r}
+
+# Remove rows that are definitely noise
+A03_04 <- A03_04 %>% filter(Port != "1")
+A03_04 <- A03_04 %>% filter(Port != "3")
+
+A03_04 <- A03_04 %>% filter(Port == "4")
+
+# Convert Port to a factor for colour assignation
+A03_04$Port <- as.factor(A03_04$Port)
+
+# Zoom into a time window
+start_time <- 50 # in seconds
+end_time <- 80 # in seconds
+
+# Filter for time window
+filtered_data <- A03_04 %>%
+  filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 0304 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- A03_04 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0
+plot_port(0, start_time = 100.00, end_time = 105.00)
+
+# Port 1 
+plot_port(1, start_time = 50.00, end_time = 100.00) #NULL SIGNAL
+
+# Port 2
+plot_port(2, start_time = 80.00, end_time = 85.00) #ECG
+
+#Port 3
+plot_port(3, start_time = 100.00, end_time = 103.00)
+
+# Port 4
+plot_port(4, start_time = 100.00, end_time = 103.00) #Noise
+
+# Port 5
+plot_port(5, start_time = 100.00, end_time = 103.00) #Noise
+
+# Port 6
+plot_port(6, start_time = 100.00, end_time = 103.00) #Noise
+
+# Port 7
+plot_port(7, start_time = 100.00, end_time = 103.00) #Noise
+```
+
+#### Participants 05 and 06
+
+```{r}
+ggplot(B05_06, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 0506",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all plots.
+
+```{r}
+
+# Remove signals that are definitely noise
+B05_06 <- B05_06 %>% filter(Port != "6")
+B05_06 <- B05_06 %>% filter(Port != "7")
+
+# Convert Port to a factor for colour assignation
+B05_06$Port <- as.factor(B05_06$Port)
+
+# Zoom into a time window
+start_time <- 80 # in seconds
+end_time <- 120 # in seconds
+
+# Filter for time window
+filtered_data <- B05_06 %>%
+  filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 0506 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- B05_06 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0 
+plot_port(0, start_time = 59.00, end_time = 62.00)
+
+# Port 1
+plot_port(1, start_time = 100.00, end_time = 125.00)
+
+# Port 2
+plot_port(2, start_time = 50.00, end_time = 55.00)
+
+#Port 3
+plot_port(3, start_time = 50.00, end_time = 60.00)
+
+# Port 4
+plot_port(4, start_time = 80.00, end_time = 83.00)
+
+# Port 5
+plot_port(5, start_time = 80.00, end_time = 83.00)
+
+# Port 6
+plot_port(6, start_time = 80.00, end_time = 83.00)
+
+# Port 7
+plot_port(7, start_time = 80.00, end_time = 83.00)
+```
+
+#### Participants 07 and 08
+
+```{r}
+ggplot(B07_08, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 0708",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all ports.
+
+```{r}
+# Convert Port to a factor for colour assignation
+B07_08$Port <- as.factor(B07_08$Port)
+
+# Zoom into a time window
+start_time <- 80 # in seconds
+end_time <- 100 # in seconds
+
+# Filter for time window
+filtered_data <- B07_08 %>%
+  filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 0708 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- B07_08 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0 
+plot_port(0, start_time = 100.00, end_time = 102.00)
+
+# Port 1
+plot_port(1, start_time = 100.00, end_time = 102.00)
+
+# Port 2
+plot_port(2, start_time = 50.00, end_time = 55.00)
+
+#Port 3
+plot_port(3, start_time = 100.00, end_time = 102.00)
+
+# Port 4
+plot_port(4, start_time = 100.00, end_time = 102.00)
+
+# Port 5
+plot_port(5, start_time = 100.00, end_time = 102.00)
+
+# Port 6
+plot_port(6, start_time = 100.00, end_time = 102.00)
+
+# Port 7
+plot_port(7, start_time = 100.00, end_time = 102.00)
+```
+
+#### Participants 09 and 10
+
+```{r}
+ggplot(C09_10, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 0910",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all ports.
+
+```{r}
+# Convert Port to a factor for colour assignation
+C09_10$Port <- as.factor(C09_10$Port)
+
+# Zoom into a time window
+start_time <- 80 # in seconds
+end_time <- 120 # in seconds
+
+# Filter for time window
+filtered_data <- C09_10 %>%
+  filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 0910 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- C09_10 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0 
+plot_port(0, start_time = 100.00, end_time = 102.00) #Heart Rate
+
+# Port 1
+plot_port(1, start_time = 100.00, end_time = 102.00)
+
+# Port 2
+plot_port(2, start_time = 100.00, end_time = 102.00)
+
+#Port 3
+plot_port(3, start_time = 100.00, end_time = 102.00)
+
+# Port 4 
+plot_port(4, start_time = 100.00, end_time = 102.00) 
+
+# Port 5
+plot_port(5, start_time = 100.00, end_time = 102.00) 
+
+# Port 6
+plot_port(6, start_time = 100.00, end_time = 102.00) 
+
+# Port 7
+plot_port(7, start_time = 100.00, end_time = 102.00) 
+```
+
+#### Participants 11 and 12
+
+```{r}
+ggplot(C11_12, aes(x = Timestamp, y = Value)) +
+  geom_line() +
+  facet_wrap(~Port, scales = "free_y") +
+  labs(
+    title = "Sensor Signals per Port 1112",
+    x = "Timestamp (s)",
+    y = "Raw Signal Value"
+  ) +
+  theme_minimal()
+```
+
+Overlay of all ports.
+
+```{r}
+# Convert Port to a factor for colour assignation
+C11_12$Port <- as.factor(C11_12$Port)
+
+# Zoom into a time window
+start_time <- 80 # in seconds
+end_time <- 120 # in seconds
+
+# Filter for time window
+filtered_data <- C11_12 %>%
+  filter(Timestamp >= start_time & Timestamp <= end_time)
+
+# Plot
+ggplot(filtered_data, aes(x = Timestamp, y = Value, color = Port)) +
+  geom_line(alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("Overlay of All 8 Ports 1112 (Zoomed)") +
+  xlab("Time (seconds)") +
+  ylab("Signal Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+Create the function to zoom into each port.
+
+```{r}
+# Plotting a specific port with optional time window (zoom)
+plot_port <- function(port_num, start_time = NULL, end_time = NULL) {
+  # Filter for the chosen port
+  port_data <- C11_12 %>% filter(Port == port_num)
+  
+  # Filter for time window if specified
+  if (!is.null(start_time) & !is.null(end_time)) {
+    port_data <- port_data %>% filter(Timestamp >= start_time & Timestamp <= end_time)
+  }
+  
+  # Plot with ggplot2
+  plot <- ggplot(port_data, aes(x = Timestamp, y = Value)) +
+    geom_line(color = "blue") +
+    ggtitle(paste("Signal for Port", port_num)) +
+    xlab("Time (seconds)") +
+    ylab("Signal Value") +
+    theme_minimal()
+  
+  print(plot)
+}
+```
+
+```{r}
+# Now, call the function by specifying the port
+
+# Port 0 
+plot_port(0, start_time = 100.00, end_time = 102.00)
+
+# Port 1
+plot_port(1, start_time = 100.00, end_time = 102.00)
+
+# Port 2
+plot_port(2, start_time = 100.00, end_time = 102.00)
+
+#Port 3
+plot_port(3, start_time = 100.00, end_time = 102.00)
+
+# Port 4 
+plot_port(4, start_time = 100.00, end_time = 102.00) 
+
+# Port 5
+plot_port(5, start_time = 80.00, end_time = 110.00) 
+
+# Port 6
+plot_port(6, start_time = 80.00, end_time = 110.00)
+
+# Port 7
+plot_port(7, start_time = 80.00, end_time = 120.00)
+```
+
+## Cleaning the data
+
+Import the data sets with good ECG/EDA data
+
+```{r}
+# Import the datasets
+
+A01_02 <- fread("A_01_02.yld")
+A03_04 <- fread("A_03_04.yld")
+B05_06 <- fread("B_05_06.yld")
+C09_10 <- fread("C_09_10.yld")
+
+
+# Name the variables
+colnames(A01_02) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(A03_04) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(B05_06) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+colnames(C09_10) <- c("Timestamp", "Col2", "Col3", "Port", "Value")
+```
+
+Remove unnecessary data.
+
+```{r}
+# Make "Port" numeric
+A01_02$Port <- as.factor(A01_02$Port)
+A03_04$Port <- as.factor(A03_04$Port)
+B05_06$Port <- as.factor(B05_06$Port)
+C09_10$Port <- as.factor(C09_10$Port)
+
+# Filter Ports A0, A1, A2, and A3 for each participant
+A01_02 <- A01_02 %>% filter(Port != "4")
+A01_02 <- A01_02 %>% filter(Port != "5")
+A01_02 <- A01_02 %>% filter(Port != "6")
+A01_02 <- A01_02 %>% filter(Port != "7")
+
+A03_04 <- A03_04 %>% filter(Port != "0")
+A03_04 <- A03_04 %>% filter(Port != "1")
+A03_04 <- A03_04 %>% filter(Port != "4")
+A03_04 <- A03_04 %>% filter(Port != "5")
+A03_04 <- A03_04 %>% filter(Port != "6")
+A03_04 <- A03_04 %>% filter(Port != "7")
+
+B05_06 <- B05_06 %>% filter(Port != "4")
+B05_06 <- B05_06 %>% filter(Port != "5")
+B05_06 <- B05_06 %>% filter(Port != "6")
+B05_06 <- B05_06 %>% filter(Port != "7")
+
+C09_10 <- C09_10 %>% filter(Port != "4")
+C09_10 <- C09_10 %>% filter(Port != "5")
+C09_10 <- C09_10 %>% filter(Port != "6")
+C09_10 <- C09_10 %>% filter(Port != "7")
+
+# Remove the unnecessary variables = Col2 and Col3
+A01_02 <- A01_02 %>% select(-Col2)
+A01_02 <- A01_02 %>% select(-Col3)
+
+A03_04 <- A03_04 %>% select(-Col2)
+A03_04 <- A03_04 %>% select(-Col3)
+
+B05_06 <- B05_06 %>% select(-Col2)
+B05_06 <- B05_06 %>% select(-Col3)
+
+C09_10 <- C09_10 %>% select(-Col2)
+C09_10 <- C09_10 %>% select(-Col3)
+```
+
+## Isolate ECG/EDA data per participant
+
+```{r}
+ECG_EDA01 <- A01_02 %>% filter(Port != "2")
+ECG_EDA01 <- ECG_EDA01 %>% filter(Port != "3")
+
+ECG_EDA02 <- A01_02 %>% filter(Port != "0")
+ECG_EDA02 <- ECG_EDA02 %>% filter(Port != "1")
+
+ECG_EDA04 <- A03_04
+
+ECG_EDA05 <- B05_06 %>% filter(Port != "2")
+ECG_EDA05 <- ECG_EDA05 %>% filter(Port != "3")
+
+ECG_EDA06 <- B05_06 %>% filter(Port != "0")
+ECG_EDA06 <- ECG_EDA06 %>% filter(Port != "1")
+
+ECG_EDA09 <- C09_10 %>% filter(Port != "2")
+ECG_EDA09 <- ECG_EDA09 %>% filter(Port != "3")
+
+ECG_EDA10 <- C09_10 %>% filter(Port != "0")
+ECG_EDA10 <- ECG_EDA10 %>% filter(Port != "1")
+```
+
+Rename the data to ECG and EDA.
+
+```{r}
+# Rename "Port" to "Measure""
+ECG_EDA01 <- ECG_EDA01 %>% rename(Measure = Port)
+ECG_EDA02 <- ECG_EDA02 %>% rename(Measure = Port)
+ECG_EDA04 <- ECG_EDA04 %>% rename(Measure = Port)
+ECG_EDA05 <- ECG_EDA05 %>% rename(Measure = Port)
+ECG_EDA06 <- ECG_EDA06 %>% rename(Measure = Port)
+ECG_EDA09 <- ECG_EDA09 %>% rename(Measure = Port)
+ECG_EDA10 <- ECG_EDA10 %>% rename(Measure = Port)
+
+
+ECG_EDA01 <- ECG_EDA01 %>%
+  mutate(Measure = case_when(
+    Measure == "0" ~ "ECG",
+    Measure == "1" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA02 <- ECG_EDA02 %>%
+  mutate(Measure = case_when(
+    Measure == "2" ~ "ECG",
+    Measure == "3" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA04 <- ECG_EDA04 %>%
+  mutate(Measure = case_when(
+    Measure == "2" ~ "ECG",
+    Measure == "3" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA05 <- ECG_EDA05 %>%
+  mutate(Measure = case_when(
+    Measure == "0" ~ "ECG",
+    Measure == "1" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA06 <- ECG_EDA06 %>%
+  mutate(Measure = case_when(
+    Measure == "2" ~ "ECG",
+    Measure == "3" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA09 <- ECG_EDA09 %>%
+  mutate(Measure = case_when(
+    Measure == "0" ~ "ECG",
+    Measure == "1" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+ECG_EDA10 <- ECG_EDA10 %>%
+  mutate(Measure = case_when(
+    Measure == "2" ~ "ECG",
+    Measure == "3" ~ "EDA",
+    TRUE ~ Measure 
+  ))
+
+```
+
+### Save the ECG/EDA data sets as their own CSV files + document as .docx
+
+```{r}
+# Save each dataset to a CSV file
+write.csv(ECG_EDA01, "ECG_EDA01.csv", row.names = FALSE)
+write.csv(ECG_EDA02, "ECG_EDA02.csv", row.names = FALSE)
+write.csv(ECG_EDA04, "ECG_EDA04.csv", row.names = FALSE)
+write.csv(ECG_EDA05, "ECG_EDA05.csv", row.names = FALSE)
+write.csv(ECG_EDA06, "ECG_EDA06.csv", row.names = FALSE)
+write.csv(ECG_EDA09, "ECG_EDA09.csv", row.names = FALSE)
+write.csv(ECG_EDA10, "ECG_EDA10.csv", row.names = FALSE)
+```
+
+```{r}
+rmarkdown::render("Data_Exploration.qmd", output_format = "word_document")
+```

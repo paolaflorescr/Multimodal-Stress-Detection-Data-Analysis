@@ -1,0 +1,3661 @@
+---
+title: "ECG_analysis"
+format: 
+  docx:
+    always_allow_html: true
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(screenshot.force = TRUE)
+```
+
+```{r}
+# Install packages
+install.packages("tidyverse", dependencies = TRUE)
+install.packages("data.table")
+install.packages("dplyr")
+install.packages("signal")
+install.packages("plotly")
+install.packages("pracma")
+install.packages("ggpubr")
+install.packages("zoo")
+install.packages("webshot")
+
+
+# Download libraries
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(signal)
+library(plotly)
+library(pracma)
+library(ggpubr)
+library(zoo)
+library(webshot)
+```
+
+## Load data sets
+
+```{r}
+setwd("~/Desktop/R_docs")
+
+ECG_EDA01 <- fread("ECG_EDA01.csv")
+ECG_EDA02 <- fread("ECG_EDA02.csv")
+ECG_EDA05 <- fread("ECG_EDA05.csv")
+ECG_EDA06 <- fread("ECG_EDA06.csv")
+ECG_EDA09 <- fread("ECG_EDA09.csv")
+ECG_EDA10 <- fread("ECG_EDA10.csv")
+```
+
+## Adding Relative Timestamp + Remove the data prior to Start_Baseline1
+
+```{r}
+#Rename 'Timestamp' to 'OG_Timestamp'
+# #ECG_EDA01 <- ECG_EDA01 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA02 <- ECG_EDA02 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA04 <- ECG_EDA04 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA05 <- ECG_EDA05 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA06 <- ECG_EDA06 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA09 <- ECG_EDA09 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# #ECG_EDA10 <- ECG_EDA10 %>%
+# #  rename(OG_Timestamp = Timestamp)
+# 
+# # Create a new Timestamp where e.g., 161 = 0 (baseline)
+# #ECG_EDA01 <- ECG_EDA01 %>%
+# #  mutate(Timestamp = OG_Timestamp - 161)
+# #ECG_EDA02 <- ECG_EDA02 %>%
+# #  mutate(Timestamp = OG_Timestamp - 161)
+# #ECG_EDA04 <- ECG_EDA04 %>%
+#   #mutate(Timestamp = OG_Timestamp - 161)
+# #ECG_EDA05 <- ECG_EDA05 %>%
+# #  mutate(Timestamp = OG_Timestamp - 156)
+# #ECG_EDA06 <- ECG_EDA06 %>%
+# #  mutate(Timestamp = OG_Timestamp - 156)
+# #ECG_EDA09 <- ECG_EDA09 %>%
+# #  mutate(Timestamp = OG_Timestamp - 161)
+# #ECG_EDA10 <- ECG_EDA10 %>%
+# #  mutate(Timestamp = OG_Timestamp - 161)
+# 
+# # Remove columns where Timestamp < baseline
+# #ECG_EDA01 <- ECG_EDA01 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA02 <- ECG_EDA02 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA04 <- ECG_EDA04 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA05 <- ECG_EDA05 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA06 <- ECG_EDA06 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA09 <- ECG_EDA09 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+# #ECG_EDA10 <- ECG_EDA10 %>%
+# #  mutate(across(-Timestamp, ~ ifelse(Timestamp < 0, NA, .))) %>%
+# #  drop_na()
+```
+
+### Move Timestamp to the Beginning of the data sets
+
+```{r}
+#ECG_EDA01 <- ECG_EDA01 %>%
+#  select(Timestamp, everything())
+
+#ECG_EDA02 <- ECG_EDA02 %>%
+#  select(Timestamp, everything())
+
+#ECG_EDA05 <- ECG_EDA05 %>%
+#  select(Timestamp, everything())
+
+#ECG_EDA06 <- ECG_EDA06 %>%
+#  select(Timestamp, everything())
+
+#ECG_EDA09 <- ECG_EDA09 %>%
+#  select(Timestamp, everything())
+
+#ECG_EDA10 <- ECG_EDA10 %>%
+#  select(Timestamp, everything())
+```
+
+## Save the cleaned up datasets with new Timestamps
+
+```{r}
+#write.csv(ECG_EDA01, "ECG_EDA01.csv", row.names = FALSE)
+#write.csv(ECG_EDA02, "ECG_EDA02.csv", row.names = FALSE)
+#write.csv(ECG_EDA04, "ECG_EDA04.csv", row.names = FALSE)
+#write.csv(ECG_EDA05, "ECG_EDA05.csv", row.names = FALSE)
+#write.csv(ECG_EDA06, "ECG_EDA06.csv", row.names = FALSE)
+#write.csv(ECG_EDA09, "ECG_EDA09.csv", row.names = FALSE)
+#write.csv(ECG_EDA10, "ECG_EDA10.csv", row.names = FALSE)
+```
+
+## Isolate ECG data per participant
+
+```{r}
+# Remove EDA measure
+ECG01 <- ECG_EDA01 %>% dplyr::filter(Measure != "EDA")
+ECG02 <- ECG_EDA02 %>% dplyr::filter(Measure != "EDA")
+ECG05 <- ECG_EDA05 %>% dplyr::filter(Measure != "EDA")
+ECG06 <- ECG_EDA06 %>% dplyr::filter(Measure != "EDA")
+ECG09 <- ECG_EDA09 %>% dplyr::filter(Measure != "EDA")
+ECG10 <- ECG_EDA10 %>% dplyr::filter(Measure != "EDA")
+```
+
+### Add Index variable
+
+```{r}
+ECG01 <- ECG01 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+
+ECG02 <- ECG02 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+
+ECG05 <- ECG05 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+
+ECG06 <- ECG06 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+
+ECG09 <- ECG09 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+
+ECG10 <- ECG10 %>%
+  arrange(Timestamp) %>%
+  mutate(Index = row_number()) %>%
+  relocate(Index, .before = everything())
+```
+
+## Pre-processing the ECG Signal
+
+### High Bandpass Filter (5-30 Hz)
+
+This code applies a bandpass filter to clean the raw ECG signal. It uses a 4th-order Butterworth filter to retain frequencies between 5 and 30 Hz—removing slow baseline drift and high-frequency noise while preserving the QRS complex. The filtered signal (`ecg1_filtered`) is better suited for detecting heartbeats and calculating heart rate or heart rate variability.
+
+#### Participant 01
+
+```{r}
+# Create a list with ECG values
+ecg1_raw <- ECG01$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg1_filtered <- filtfilt(bp_filter, ecg1_raw)
+
+```
+
+##### *Basic plot*
+
+```{r}
+# Plot at a specific time window
+start <- 1
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG01$Timestamp[start:end], ecg1_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG 01 (10s)")
+
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg1_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG01$Timestamp[start:end], ecg1_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG01$Timestamp[start], 2), "–", round(ECG01$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+  
+```
+
+##### *Interactive zoom with plotly*
+
+```{r}
+# Plot
+plot_ly(data = ECG01, x = ~Timestamp, y = ~ecg1_filtered, type = 'scatter', mode = 'lines',
+        line = list(color = 'blue')) %>%
+  layout(title = "Filtered ECG (Interactive Zoom)",
+         xaxis = list(title = "Time (s)", rangeslider = list(visible = TRUE)),
+         yaxis = list(title = "Amplitude"))
+```
+
+#### Participant 02
+
+```{r}
+# Create a list with ECG values
+ecg2_raw <- ECG02$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg2_filtered <- filtfilt(bp_filter, ecg2_raw)
+
+# Plot at a specific time window
+start <- 1
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG02$Timestamp[start:end], ecg2_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG02 (10s)")
+
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg2_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG02$Timestamp[start:end], ecg2_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG02$Timestamp[start], 2), "–", round(ECG02$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+```
+
+#### Participant 05
+
+```{r}
+# Create a list with ECG values
+ecg5_raw <- ECG05$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg5_filtered <- filtfilt(bp_filter, ecg5_raw)
+
+# Plot at a specific time window
+start <- 1
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG05$Timestamp[start:end], ecg5_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG05 (10s)")
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg5_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG05$Timestamp[start:end], ecg5_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG05$Timestamp[start], 2), "–", round(ECG05$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+```
+
+#### Participant 06
+
+```{r}
+# Create a list with ECG values
+ecg6_raw <- ECG06$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg6_filtered <- filtfilt(bp_filter, ecg6_raw)
+
+# Plot at a specific time window
+start <- 1
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG06$Timestamp[start:end], ecg6_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG06 (10s)")
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg6_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG06$Timestamp[start:end], ecg6_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG06$Timestamp[start], 2), "–", round(ECG06$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+```
+
+#### Participant 09
+
+```{r}
+# Create a list with ECG values
+ecg9_raw <- ECG09$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg9_filtered <- filtfilt(bp_filter, ecg9_raw)
+
+# Plot at a specific time window
+start <- 65
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG09$Timestamp[start:end], ecg9_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG09 (10s)")
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg9_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG09$Timestamp[start:end], ecg9_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG09$Timestamp[start], 2), "–", round(ECG09$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+```
+
+#### Participant 10
+
+```{r}
+# Create a list with ECG values
+ecg10_raw <- ECG10$Value
+
+# Define sampling frequency
+fs <- 200 # in Hz
+
+# Define bandpass filter (Butterworth, 4th order for smooth bandpassing)
+low <- 5 / (fs / 2) # Normalise frequency
+high <- 30 / (fs / 2)
+
+bp_filter <- butter(n = 4, W = c(low, high), type = "pass")
+
+# Apply the filter
+ecg10_filtered <- filtfilt(bp_filter, ecg10_raw)
+
+# Plot at a specific time window
+start <- 1
+duration_sec <- 10
+end <- start + fs*duration_sec
+
+plot(ECG10$Timestamp[start:end], ecg10_filtered[start:end], type = "l",
+     col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+     main = "Zoomed View: Filtered ECG10 (10s)")
+```
+
+##### *Sliding window animation (static frames)*
+
+```{r}
+# Parameters
+fs <- 200 # in Hz
+
+window_duration <- 10 #seconds
+window_size <- fs*window_duration
+step_size <- fs*2 #2-second step overlap
+
+# Limit the animation for now
+max_windows <- 20
+counter <- 0
+
+# Plot
+for (start in seq(1, length(ecg10_filtered) - window_size, by = step_size)) {
+  end <- start + window_size - 1
+  plot(ECG10$Timestamp[start:end], ecg10_filtered[start:end], type = "l",
+       col = "blue", xlab = "Time (s)", ylab = "Filtered ECG",
+       main = paste0("Window: ", round(ECG10$Timestamp[start], 2), "–", round(ECG10$Timestamp[end], 2), "s"))
+  
+  Sys.sleep(0.3)  # animation pause
+  counter <- counter + 1
+  if (counter >= max_windows) break
+}
+```
+
+## Detect R-peaks with findpeaks()
+
+### Create the function detect_adaptive_r_peaks
+
+This function detects R-peaks in an ECG signal using an adaptive, windowed approach. It breaks the ECG into segments (default 10 seconds), computes a local mean and standard deviation, and flags peaks that exceed a dynamic threshold (`mean + 1.2 × SD`). It also applies a minimum distance between peaks (0.6 seconds) to avoid detecting the same heartbeat twice. The result is a cleaned table of time-stamped R-peaks.
+
+**Post-processing** further filters out false positives by removing peaks that are too close together or too weak compared to the previous one. An additional cleaning step removes peaks that produce implausible RR intervals (i.e., intervals shorter than 0.4 seconds or longer than 1.5 seconds), ensuring that the final R-peaks reflect physiologically valid heartbeats.
+
+```{r}
+detect_adaptive_r_peaks <- function(ecg_signal, timestamps, fs = 200, 
+                                    window_sec = 10, sd_multiplier = 1.5, 
+                                    min_rr_sec = 0.4, max_rr_sec = 1.5) {
+  
+  window_samples <- window_sec * fs
+  minpeakdist <- min_rr_sec * fs
+  adaptive_peak_indices <- c()
+
+  # Step 1: Adaptive peak detection using sliding window
+  for (start_idx in seq(1, length(ecg_signal), by = window_samples)) {
+    end_idx <- min(start_idx + window_samples - 1, length(ecg_signal))
+    segment <- ecg_signal[start_idx:end_idx]
+
+    local_mean <- mean(segment)
+    local_sd <- sd(segment)
+    threshold <- local_mean + sd_multiplier * local_sd
+
+    peaks <- findpeaks(segment, minpeakheight = threshold, minpeakdistance = minpeakdist)
+
+    if (!is.null(peaks)) {
+      segment_peak_indices <- peaks[, 2] + start_idx - 1
+      adaptive_peak_indices <- c(adaptive_peak_indices, segment_peak_indices)
+    }
+  }
+
+  # Step 2: Create data frame of all detected peaks
+  peak_table <- data.frame(
+    Index = adaptive_peak_indices,
+    Timestamp = timestamps[adaptive_peak_indices],
+    Amplitude = ecg_signal[adaptive_peak_indices]
+  ) %>% arrange(Timestamp)
+  
+  # Step 3: Post-process to remove closely spaced or weak peaks
+  keep_indices <- c()
+  last_kept_idx <- NA
+
+  for (i in seq_len(nrow(peak_table))) {
+    curr_idx <- peak_table$Index[i]
+    curr_time <- peak_table$Timestamp[i]
+    curr_amp <- peak_table$Amplitude[i]
+
+    if (is.na(last_kept_idx)) {
+      keep_indices <- c(keep_indices, i)
+      last_kept_idx <- i
+    } else {
+      prev_time <- peak_table$Timestamp[last_kept_idx]
+      prev_amp <- peak_table$Amplitude[last_kept_idx]
+      
+      # Keep if ≥0.4s apart or strong enough
+      if ((curr_time - prev_time) >= 0.4 || curr_amp >= prev_amp * 0.7) {
+        keep_indices <- c(keep_indices, i)
+        last_kept_idx <- i
+      }
+    }
+  }
+
+  peak_table <- peak_table[keep_indices, ]
+
+  # Step 4: Remove peaks with implausible RR intervals
+  rr_intervals <- diff(peak_table$Timestamp)
+  valid_rr <- which(rr_intervals >= min_rr_sec & rr_intervals <= max_rr_sec)
+  keep_rr_indices <- unique(c(1, valid_rr + 1))  # Always keep first peak
+
+  peak_table <- peak_table[keep_rr_indices, ]
+
+  return(peak_table)
+}
+```
+
+### Participant 01
+
+#### Get peak times
+
+```{r}
+# Create a table with R-peaks for Participant 1
+peak_table1 <- detect_adaptive_r_peaks(ecg1_filtered, ECG01$Timestamp, fs = 200)
+head(peak_table1)
+
+```
+
+There was an R-peak at **(index)**- *the Xth sample in the ECG*, which occurred at **this time (timestamp)**, and had **this voltage value (amplitude)**.
+
+#### Add binary column identifying peaks and the ECG filtered value to ECG01
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG01$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG01$IsPeak[ECG01$Timestamp %in% peak_table1$Timestamp] <- 1
+
+# Check counts
+table(ECG01$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG01$Timestamp) == length(ecg1_filtered)
+
+# Add the Filtered Value column
+ECG01$FilteredValue <- ecg1_filtered
+
+# Compare the value and filtered value
+head(ECG01[, c("Timestamp", "Value", "FilteredValue")], 10)
+
+
+```
+
+Check that the values and filtered values are aligned
+
+```{r}
+yrange <- range(c(ECG01$Value[1:2000], ECG01$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG01$Timestamp[1:2000], ECG01$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "P1 Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG01$Timestamp[1:2000], ECG01$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices1 <- peak_table1$Index
+peak_times1 <- peak_table1$Timestamp
+
+# Define the zoom window (e.g., 24.04307 to 2252.647 seconds)
+zoom_start <- 1000
+zoom_end <- 1015
+
+# Indices for zoom window
+zoom_index <- which(ECG01$Timestamp >= zoom_start & ECG01$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times1 >= zoom_start & peak_times1 <= zoom_end)
+
+with(ECG01[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg1_filtered[zoom_index], type = "l",
+       main = paste("P1 Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg1_filtered[zoom_index]), 110))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times1[zoom_peak_indices],
+         ecg1_filtered[peak_indices1[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times1[zoom_peak_indices],
+    y = ecg1_filtered[peak_indices1[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg1_filtered[peak_indices1[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg1_filtered))
+first_valid_time <- ECG01$Timestamp[min(valid_indices)]
+last_valid_time <- ECG01$Timestamp[max(valid_indices)]
+
+cat("Valid ECG1 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+
+```
+
+#### *Plot with adjustable zoom using ggplot( )*
+
+```{r}
+df1 <- data.frame(
+  Time = ECG01$Timestamp[zoom_index],
+  Amplitude = ecg1_filtered[zoom_index]
+)
+
+peak_df1 <- data.frame(
+  Time = peak_times1[zoom_peak_indices],
+  Amplitude = ecg1_filtered[peak_indices1[zoom_peak_indices]]
+)
+
+ggplot(df1, aes(x = Time, y = Amplitude)) +
+  geom_line() +
+  geom_point(data = peak_df1, aes(x = Time, y = Amplitude), color = "red") +
+  ggtitle(paste("Zoomed ECG:", zoom_start, "-", zoom_end, "s")) +
+  xlab("Time (s)") + ylab("Amplitude")
+
+```
+
+### Participant 02
+
+#### *Get peak times*
+
+```{r}
+# Create a table with R-peaks for Participant 1
+peak_table2 <- detect_adaptive_r_peaks(ecg2_filtered, ECG02$Timestamp, fs = 200)
+head(peak_table2)
+```
+
+#### *Add binary column identifying peaks and the ECG filtered value to ECG02*
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG02$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG02$IsPeak[ECG02$Timestamp %in% peak_table2$Timestamp] <- 1
+
+# Check counts
+table(ECG02$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG02$Timestamp) == length(ecg2_filtered)
+
+# Add the Filtered Value column
+ECG02$FilteredValue <- ecg2_filtered
+
+# Compare the value and filtered value
+head(ECG02[, c("Timestamp", "Value", "FilteredValue")], 10)
+```
+
+Check that the values and filtered values are aligned
+
+```{r}
+yrange <- range(c(ECG02$Value[1:2000], ECG02$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG02$Timestamp[1:2000], ECG02$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG02$Timestamp[1:2000], ECG02$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices2 <- peak_table2$Index
+peak_times2 <- peak_table2$Timestamp
+
+# Define the zoom window (e.g., 24.04307 to 2252.642 seconds)
+zoom_start <- 120
+zoom_end <- 130
+
+# Indices for zoom window
+zoom_index <- which(ECG02$Timestamp >= zoom_start & ECG02$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times2 >= zoom_start & peak_times2 <= zoom_end)
+
+with(ECG02[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg2_filtered[zoom_index], type = "l",
+       main = paste("Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg2_filtered[zoom_index]), 170))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times2[zoom_peak_indices],
+         ecg2_filtered[peak_indices2[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times2[zoom_peak_indices],
+    y = ecg2_filtered[peak_indices2[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg2_filtered[peak_indices2[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg2_filtered))
+first_valid_time <- ECG02$Timestamp[min(valid_indices)]
+last_valid_time <- ECG02$Timestamp[max(valid_indices)]
+
+cat("Valid ECG2 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+```
+
+### Participant 05
+
+#### *Get peak times*
+
+```{r}
+# Create a table with R-peaks for Participant 1
+peak_table5 <- detect_adaptive_r_peaks(ecg5_filtered, ECG05$Timestamp, fs = 200)
+head(peak_table5)
+```
+
+#### *Add binary column identifying peaks and the ECG filtered value to ECG05*
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG05$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG05$IsPeak[ECG05$Timestamp %in% peak_table5$Timestamp] <- 1
+
+# Check counts
+table(ECG05$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG05$Timestamp) == length(ecg5_filtered)
+
+# Add the Filtered Value column
+ECG05$FilteredValue <- ecg5_filtered
+
+# Compare the value and filtered value
+head(ECG05[, c("Timestamp", "Value", "FilteredValue")], 10)
+```
+
+Check that the values and filtered values are aligned.
+
+```{r}
+yrange <- range(c(ECG05$Value[1:2000], ECG05$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG05$Timestamp[1:2000], ECG05$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG05$Timestamp[1:2000], ECG05$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices5 <- peak_table5$Index
+peak_times5 <- peak_table5$Timestamp
+
+# Define the zoom window (from 42.36524 to 2415.7986 seconds)
+zoom_start <- 50
+zoom_end <- 70
+
+# Indices for zoom window
+zoom_index <- which(ECG05$Timestamp >= zoom_start & ECG05$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times5 >= zoom_start & peak_times5 <= zoom_end)
+
+with(ECG05[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg5_filtered[zoom_index], type = "l",
+       main = paste("Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg5_filtered[zoom_index]), 170))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times5[zoom_peak_indices],
+         ecg5_filtered[peak_indices5[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times5[zoom_peak_indices],
+    y = ecg5_filtered[peak_indices5[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg5_filtered[peak_indices5[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg5_filtered))
+first_valid_time <- ECG05$Timestamp[min(valid_indices)]
+last_valid_time <- ECG05$Timestamp[max(valid_indices)]
+
+cat("Valid ECG5 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+
+```
+
+#### *Plot with adjustable zoom using ggplot( )*
+
+```{r}
+df5 <- data.frame(
+  Time = ECG05$Timestamp[zoom_index],
+  Amplitude = ecg5_filtered[zoom_index]
+)
+
+peak_df5 <- data.frame(
+  Time = peak_times5[zoom_peak_indices],
+  Amplitude = ecg5_filtered[peak_indices5[zoom_peak_indices]]
+)
+
+# Plot
+ggplot(df5, aes(x = Time, y = Amplitude)) +
+  geom_line() +
+  geom_point(data = peak_df5, aes(x = Time, y = Amplitude), color = "red") +
+  ggtitle(paste("Zoomed ECG:", zoom_start, "-", zoom_end, "s")) +
+  xlab("Time (s)") + ylab("Amplitude") +
+  ylim(min(df5$Amplitude, na.rm = TRUE), max(df5$Amplitude, na.rm = TRUE))
+```
+
+### Participant 06
+
+#### *Get peak times*
+
+```{r}
+# Create a table with R-peaks for Participant 1
+peak_table6 <- detect_adaptive_r_peaks(ecg6_filtered, ECG06$Timestamp, fs = 200)
+head(peak_table6)
+```
+
+#### *Add binary column identifying peaks and the ECG filtered value to ECG06*
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG06$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG06$IsPeak[ECG06$Timestamp %in% peak_table6$Timestamp] <- 1
+
+# Check counts
+table(ECG06$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG06$Timestamp) == length(ecg6_filtered)
+
+# Add the Filtered Value column
+ECG06$FilteredValue <- ecg6_filtered
+
+# Compare the value and filtered value
+head(ECG06[, c("Timestamp", "Value", "FilteredValue")], 10)
+```
+
+Check that the values and filtered values are aligned.
+
+```{r}
+yrange <- range(c(ECG06$Value[1:2000], ECG06$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG06$Timestamp[1:2000], ECG06$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG06$Timestamp[1:2000], ECG06$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices6 <- peak_table6$Index
+peak_times6 <- peak_table6$Timestamp
+
+# Define the zoom window (from 42.36524 to 2415.798  seconds)
+zoom_start <- 60
+zoom_end <- 80
+
+# Indices for zoom window
+zoom_index <- which(ECG06$Timestamp >= zoom_start & ECG06$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times6 >= zoom_start & peak_times6 <= zoom_end)
+
+with(ECG06[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg6_filtered[zoom_index], type = "l",
+       main = paste("Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg6_filtered[zoom_index]), 170))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times6[zoom_peak_indices],
+         ecg6_filtered[peak_indices6[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times6[zoom_peak_indices],
+    y = ecg6_filtered[peak_indices6[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg6_filtered[peak_indices6[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg6_filtered))
+first_valid_time <- ECG06$Timestamp[min(valid_indices)]
+last_valid_time <- ECG06$Timestamp[max(valid_indices)]
+
+cat("Valid ECG6 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+```
+
+#### *Plot with adjustable zoom using ggplot( )*
+
+```{r}
+df6 <- data.frame(
+  Time = ECG06$Timestamp[zoom_index],
+  Amplitude = ecg6_filtered[zoom_index]
+)
+
+peak_df6 <- data.frame(
+  Time = peak_times6[zoom_peak_indices],
+  Amplitude = ecg6_filtered[peak_indices6[zoom_peak_indices]]
+)
+
+# Plot
+ggplot(df6, aes(x = Time, y = Amplitude)) +
+  geom_line() +
+  geom_point(data = peak_df6, aes(x = Time, y = Amplitude), color = "red") +
+  ggtitle(paste("Zoomed ECG:", zoom_start, "-", zoom_end, "s")) +
+  xlab("Time (s)") + ylab("Amplitude") +
+  ylim(min(df6$Amplitude, na.rm = TRUE), max(df6$Amplitude, na.rm = TRUE))
+```
+
+### Participant 09
+
+#### *Get peak times*
+
+```{r}
+# Create a table with R-peaks for Participant 9
+peak_table9 <- detect_adaptive_r_peaks(ecg9_filtered, ECG09$Timestamp, fs = 200)
+head(peak_table9)
+```
+
+#### *Add binary column identifying peaks and the ECG filtered value to ECG09*
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG09$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG09$IsPeak[ECG09$Timestamp %in% peak_table9$Timestamp] <- 1
+
+# Check counts
+table(ECG09$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG09$Timestamp) == length(ecg9_filtered)
+
+# Add the Filtered Value column
+ECG09$FilteredValue <- ecg9_filtered
+
+# Compare the value and filtered value
+head(ECG09[, c("Timestamp", "Value", "FilteredValue")], 10)
+```
+
+Check that the values and filtered values are aligned.
+
+```{r}
+yrange <- range(c(ECG06$Value[1:2000], ECG06$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG06$Timestamp[1:2000], ECG06$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG06$Timestamp[1:2000], ECG06$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices9 <- peak_table9$Index
+peak_times9 <- peak_table9$Timestamp
+
+# Define the zoom window (from 28.37072 to 1943.4528 seconds)
+zoom_start <- 85
+zoom_end <- 105
+
+# Indices for zoom window
+zoom_index <- which(ECG09$Timestamp >= zoom_start & ECG09$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times9 >= zoom_start & peak_times9 <= zoom_end)
+
+with(ECG09[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg9_filtered[zoom_index], type = "l",
+       main = paste("Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg9_filtered[zoom_index]), 170))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times9[zoom_peak_indices],
+         ecg9_filtered[peak_indices9[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times9[zoom_peak_indices],
+    y = ecg9_filtered[peak_indices9[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg9_filtered[peak_indices9[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg9_filtered))
+first_valid_time <- ECG09$Timestamp[min(valid_indices)]
+last_valid_time <- ECG09$Timestamp[max(valid_indices)]
+
+cat("Valid ECG9 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+```
+
+#### *Plot with adjustable zoom using ggplot( )*
+
+```{r}
+df9 <- data.frame(
+  Time = ECG09$Timestamp[zoom_index],
+  Amplitude = ecg9_filtered[zoom_index]
+)
+
+peak_df9 <- data.frame(
+  Time = peak_times9[zoom_peak_indices],
+  Amplitude = ecg9_filtered[peak_indices9[zoom_peak_indices]]
+)
+
+# Plot
+ggplot(df9, aes(x = Time, y = Amplitude)) +
+  geom_line() +
+  geom_point(data = peak_df9, aes(x = Time, y = Amplitude), color = "red") +
+  ggtitle(paste("Zoomed ECG:", zoom_start, "-", zoom_end, "s")) +
+  xlab("Time (s)") + ylab("Amplitude") +
+  ylim(min(df9$Amplitude, na.rm = TRUE), max(df9$Amplitude, na.rm = TRUE))
+```
+
+### Participant 10
+
+#### *Get peak times*
+
+```{r}
+# Create a table with R-peaks for Participant 1
+peak_table10 <- detect_adaptive_r_peaks(ecg10_filtered, ECG10$Timestamp, fs = 200)
+head(peak_table10)
+```
+
+#### *Add binary column identifying peaks and the ECG filtered value to ECG09*
+
+```{r}
+# Create a column of 0s (default: no peak)
+ECG10$IsPeak <- 0
+
+# Mark the rows where the timestamp matches a detected peak
+ECG10$IsPeak[ECG10$Timestamp %in% peak_table10$Timestamp] <- 1
+
+# Check counts
+table(ECG10$IsPeak)
+```
+
+```{r}
+# Check that lengths match
+length(ECG10$Timestamp) == length(ecg10_filtered)
+
+# Add the Filtered Value column
+ECG10$FilteredValue <- ecg10_filtered
+
+# Compare the value and filtered value
+head(ECG10[, c("Timestamp", "Value", "FilteredValue")], 10)
+```
+
+Check that the values and filtered values are aligned.
+
+```{r}
+yrange <- range(c(ECG06$Value[1:2000], ECG06$FilteredValue[1:2000]), na.rm = TRUE)
+
+{
+  plot(ECG06$Timestamp[1:2000], ECG06$Value[1:2000],
+       type = "l", col = "gray",
+       ylab = "ECG Signal", xlab = "Time",
+       main = "Raw vs Filtered ECG",
+       ylim = yrange)
+  lines(ECG06$Timestamp[1:2000], ECG06$FilteredValue[1:2000], col = "blue")
+  legend("topright", legend = c("Raw", "Filtered"), col = c("gray", "blue"), lty = 1)
+}
+```
+
+#### *Plot with adjustable zoom using plot( )*
+
+```{r}
+peak_indices10 <- peak_table10$Index
+peak_times10 <- peak_table10$Timestamp
+
+# Define the zoom window (from 28.36593 to 1943.452 seconds)
+zoom_start <- 500
+zoom_end <- 510
+
+# Indices for zoom window
+zoom_index <- which(ECG10$Timestamp >= zoom_start & ECG10$Timestamp <= zoom_end)
+
+# Define peak indices that fall within the zoom window
+zoom_peak_indices <- which(peak_times10 >= zoom_start & peak_times10 <= zoom_end)
+
+with(ECG10[zoom_index, ], { 
+  # Plot with adjusted y-limits
+  plot(Timestamp, ecg10_filtered[zoom_index], type = "l",
+       main = paste("Zoomed ECG: ", zoom_start, "-", zoom_end, "s"),
+       xlab = "Time (s)", ylab = "Amplitude",
+       ylim = c(min(ecg10_filtered[zoom_index]), 40))  # Adjust Y range
+
+  grid(col = "lightgray", lty = "dotted")  # Add grid lines
+
+  # Add red points
+  points(peak_times10[zoom_peak_indices],
+         ecg10_filtered[peak_indices10[zoom_peak_indices]],
+         col = "red", pch = 19)
+
+  # Add labels above red dots
+  text(
+    x = peak_times10[zoom_peak_indices],
+    y = ecg10_filtered[peak_indices10[zoom_peak_indices]] + 2,  # Slightly higher offset
+    labels = round(ecg10_filtered[peak_indices10[zoom_peak_indices]], 2),
+    col = "red",
+    cex = 0.7,
+    pos = 3
+  )
+})
+```
+
+```{r}
+valid_indices <- which(!is.na(ecg10_filtered))
+first_valid_time <- ECG10$Timestamp[min(valid_indices)]
+last_valid_time <- ECG10$Timestamp[max(valid_indices)]
+
+cat("Valid ECG10 data ranges from", first_valid_time, "to", last_valid_time, "\n")
+```
+
+## Additional R-R Filtering + Calculate R-R intervals + HR_BPM Add them to ECGXX
+
+### Participant 01
+
+#### Calculation
+
+This code computes R-R intervals (in seconds) and corresponding heart rate (in BPM) from the detected R-peaks by taking the time difference between successive peaks. These values are then added to the main ECG dataset (`ECG01`), with `NA`s for non-peak rows and valid HR/RR values only at R-peak indices. This approach integrates peak-derived cardiac metrics into the full ECG time series for downstream analysis or plotting.
+
+This new filter removes implausible R-R intervals by keeping only those between **0.35 and 2.0 seconds**, corresponding roughly to heart rates between **30 and 170 BPM**. It helps exclude physiologically unlikely values caused by noise, missed peaks, or false detections, ensuring cleaner heart rate and HRV analysis.
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table1$RR_interval <- c(NA, diff(peak_table1$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table1$RR_interval <- ifelse(
+  peak_table1$RR_interval < 0.35 | peak_table1$RR_interval > 2,
+  NA,
+  peak_table1$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table1$HR_BPM <- ifelse(
+  is.na(peak_table1$RR_interval) | peak_table1$RR_interval == 0,
+  NA,
+  60 / peak_table1$RR_interval
+)
+
+# Round HR values for readability
+peak_table1$HR_BPM <- round(peak_table1$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG01$RR_interval <- NA
+ECG01$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG01$RR_interval[peak_table1$Index] <- peak_table1$RR_interval
+ECG01$HR_BPM[peak_table1$Index] <- peak_table1$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG01[!is.na(ECG01$RR_interval), ])
+
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+This R-R interval line plot, combined with a 5-point moving average, is used to visualize heart rate variability trends over time. By smoothing out short-term fluctuations, the moving average highlights gradual changes in autonomic activity—such as decreasing R-R intervals during stress. The plot helps interpret physiological states, where lower R-R values indicate elevated heart rate and potential stress, while higher values reflect calmer, more relaxed conditions.
+
+```{r}
+rr_df <- ECG01[!is.na(ECG01$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+
+```
+
+P1 MA Plot interpretation
+
+-   **Stable baseline (\~0.75s R-R)** for large portions of the data, suggesting a heart rate around \~80 BPM.
+
+-   **Sharp spikes** (values \>1.25s) could reflect relaxation, pauses in activity or noise.
+
+-   **Gradual upward/downward trends** in the dark blue line could correspond to:
+
+    -   **Stress induction or recovery** Autogenerated_periods (e.g. during tasks in your study).
+
+    -   Heart rate slowing down after a peak stress moment (increase in R-R interval).
+
+-   **End of the signal (\~after 1800s)** shows more R-R variability... recovery phase or reduced engagement?
+
+#### Poincare Plot (Lag Plot)
+
+Visualises variability patterns, before, during, and after stress. When stress points are identified I can come back and overlay/shade these with the graph.
+
+Interpretation of this graph: Used for visualising HRV over time and assess ANS regulation
+
+-   X-axis = the duration of a given R-R interval in seconds.
+
+-   Y-axis: the duraction of the next R-R interval
+
+-   Each dot represents a pair of successive R-R intervals: one heartbeat followed by the next.
+
+Key Patterns:
+
+-   Tight clustering around the identity line (y=x):
+
+    -   Indicates low variability, regular heartbeat
+
+    -   Often seen in stress or sympathetic dominance
+
+-   Wider spread of points around the line
+
+    -   Suggests higher HRV and healthier autonomic balance (especially parasympathetic activity)
+
+-   Cloud-like shape (elliptical, fan, or comet-shaped):
+
+    -   A healthy HRV pattern usually shows an elliptical spread-- wider vertical than horizontal dispersion.
+
+-   Ouliers or multi-clustered patterns:
+
+    -   May suggest ectopic beats, arrhythmias, or artifacts in the ECG data.
+
+    -   Could also reflect sudden stress reactions or transitions.
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG01$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "P1 Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+
+```
+
+P1 Poincare plot interpretation
+
+-   Main cluster centred around RR \~0.6-1.0 seconds corresponds to HR \~60-100 = normal resting rate
+
+-   Some dispersed points and upper clusters may indicate:
+
+    -   Short bursts of HRV increase/decrease
+
+    -   Transitions between stress/rest
+
+    -   Possible noise
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (24.04307 to 2252.642 seconds)
+zoom_start <- 1000
+zoom_end <- 1015
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG01[!is.na(ECG01$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "P1 Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG01[ECG01$Timestamp >= zoom_start & ECG01$Timestamp <= zoom_end & !is.na(ECG01$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+
+```
+
+### Participant 02
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table2$RR_interval <- c(NA, diff(peak_table2$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table2$RR_interval <- ifelse(
+  peak_table2$RR_interval < 0.35 | peak_table2$RR_interval > 2,
+  NA,
+  peak_table2$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table2$HR_BPM <- ifelse(
+  is.na(peak_table2$RR_interval) | peak_table2$RR_interval == 0,
+  NA,
+  60 / peak_table2$RR_interval
+)
+
+# Round HR values for readability
+peak_table2$HR_BPM <- round(peak_table2$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG02$RR_interval <- NA
+ECG02$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG02$RR_interval[peak_table2$Index] <- peak_table2$RR_interval
+ECG02$HR_BPM[peak_table2$Index] <- peak_table2$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG02[!is.na(ECG02$RR_interval), ])
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+```{r}
+rr_df <- ECG02[!is.na(ECG02$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Poincare Plot (Lag Plot)
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG02$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+```
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (24.04307 to 2252.642 seconds)
+zoom_start <- 100
+zoom_end <- 130
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG02[!is.na(ECG02$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG02[ECG02$Timestamp >= zoom_start & ECG02$Timestamp <= zoom_end & !is.na(ECG02$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+
+```
+
+### Participant 05
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table5$RR_interval <- c(NA, diff(peak_table5$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table5$RR_interval <- ifelse(
+  peak_table5$RR_interval < 0.35 | peak_table5$RR_interval > 2,
+  NA,
+  peak_table5$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table5$HR_BPM <- ifelse(
+  is.na(peak_table5$RR_interval) | peak_table5$RR_interval == 0,
+  NA,
+  60 / peak_table5$RR_interval
+)
+
+# Round HR values for readability
+peak_table5$HR_BPM <- round(peak_table5$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG05$RR_interval <- NA
+ECG05$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG05$RR_interval[peak_table5$Index] <- peak_table5$RR_interval
+ECG05$HR_BPM[peak_table5$Index] <- peak_table5$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG05[!is.na(ECG05$RR_interval), ])
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+```{r}
+rr_df <- ECG05[!is.na(ECG05$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Poincare Plot (Lag Plot)
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG05$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+```
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (42.36524 to 2415.7986 seconds)
+zoom_start <- 70
+zoom_end <- 100
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG05[!is.na(ECG05$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG05[ECG05$Timestamp >= zoom_start & ECG05$Timestamp <= zoom_end & !is.na(ECG05$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+```
+
+### Participant 06
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table6$RR_interval <- c(NA, diff(peak_table6$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table6$RR_interval <- ifelse(
+  peak_table6$RR_interval < 0.35 | peak_table6$RR_interval > 2,
+  NA,
+  peak_table6$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table6$HR_BPM <- ifelse(
+  is.na(peak_table6$RR_interval) | peak_table6$RR_interval == 0,
+  NA,
+  60 / peak_table6$RR_interval
+)
+
+# Round HR values for readability
+peak_table6$HR_BPM <- round(peak_table6$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG06$RR_interval <- NA
+ECG06$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG06$RR_interval[peak_table6$Index] <- peak_table6$RR_interval
+ECG06$HR_BPM[peak_table6$Index] <- peak_table6$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG06[!is.na(ECG06$RR_interval), ])
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+```{r}
+rr_df <- ECG06[!is.na(ECG06$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Poincare Plot (Lag Plot)
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG06$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+```
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (42.36524 to 2415.798 seconds)
+zoom_start <- 70
+zoom_end <- 100
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG06[!is.na(ECG06$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG06[ECG06$Timestamp >= zoom_start & ECG06$Timestamp <= zoom_end & !is.na(ECG06$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+```
+
+### Participant 09
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table9$RR_interval <- c(NA, diff(peak_table9$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table9$RR_interval <- ifelse(
+  peak_table9$RR_interval < 0.35 | peak_table9$RR_interval > 2,
+  NA,
+  peak_table9$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table9$HR_BPM <- ifelse(
+  is.na(peak_table9$RR_interval) | peak_table9$RR_interval == 0,
+  NA,
+  60 / peak_table9$RR_interval
+)
+
+# Round HR values for readability
+peak_table9$HR_BPM <- round(peak_table9$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG09$RR_interval <- NA
+ECG09$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG09$RR_interval[peak_table9$Index] <- peak_table9$RR_interval
+ECG09$HR_BPM[peak_table9$Index] <- peak_table9$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG09[!is.na(ECG09$RR_interval), ])
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+```{r}
+rr_df <- ECG09[!is.na(ECG09$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Poincare Plot (Lag Plot)
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG09$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+```
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (28.37072 to 1943.4528 seconds)
+zoom_start <- 70
+zoom_end <- 100
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG09[!is.na(ECG09$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG09[ECG09$Timestamp >= zoom_start & ECG09$Timestamp <= zoom_end & !is.na(ECG09$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+```
+
+### Participant 10
+
+```{r}
+# Calculate RR intervals (time between successive R-peaks)
+peak_table10$RR_interval <- c(NA, diff(peak_table10$Timestamp))
+
+# Exclude implausible RR intervals: <300 ms or >2000 ms
+peak_table10$RR_interval <- ifelse(
+  peak_table10$RR_interval < 0.35 | peak_table10$RR_interval > 2,
+  NA,
+  peak_table10$RR_interval
+)
+
+# Calculate HR in beats per minute (BPM) from valid RR intervals
+peak_table10$HR_BPM <- ifelse(
+  is.na(peak_table10$RR_interval) | peak_table10$RR_interval == 0,
+  NA,
+  60 / peak_table10$RR_interval
+)
+
+# Round HR values for readability
+peak_table10$HR_BPM <- round(peak_table10$HR_BPM, 1)
+
+# Initialise RR_interval and HR_BPM columns in the full ECG dataset with NA
+ECG10$RR_interval <- NA
+ECG10$HR_BPM <- NA
+
+# Insert computed values at the corresponding R-peak indices
+ECG10$RR_interval[peak_table10$Index] <- peak_table10$RR_interval
+ECG10$HR_BPM[peak_table10$Index] <- peak_table10$HR_BPM
+
+# View a few rows where RR and HR are present
+head(ECG10[!is.na(ECG10$RR_interval), ])
+```
+
+#### R-R interval Line Plot with Moving Average (5-point MA)
+
+```{r}
+rr_df <- ECG10[!is.na(ECG10$RR_interval), ]
+rr_df$RR_ma <- zoo::rollapply(rr_df$RR_interval, width = 5, FUN = mean, fill = NA, align = "right")
+
+ggplot(rr_df[!is.na(rr_df$RR_ma), ], aes(x = Timestamp)) +
+  geom_line(aes(y = RR_interval), color = "lightblue", alpha = 0.6) +
+  geom_line(aes(y = RR_ma), color = "blue", size = 1) +
+  labs(title = "R-R Intervals Over Time with Moving Average",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Poincare Plot (Lag Plot)
+
+```{r}
+# Prepare data for Poincaré plot
+rr <- na.omit(ECG10$RR_interval)
+
+# Create lagged pairs
+df_poincare <- data.frame(
+  RR_n = rr[-length(rr)],
+  RR_np1 = rr[-1]
+)
+
+# Plot
+ggplot(df_poincare, aes(x = RR_n, y = RR_np1)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  labs(title = "Poincaré Plot of R-R Intervals",
+       x = expression(RR[n]), y = expression(RR[n+1])) +
+  theme_minimal()
+```
+
+#### Plot of Instantaneous HR
+
+```{r}
+# Set your zoom window (28.37072 to 1943.4528 seconds)
+zoom_start <- 70
+zoom_end <- 100
+
+# Full HR plot with zoom window highlighted
+p1 <- ggplot(ECG10[!is.na(ECG10$HR_BPM), ], aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  geom_vline(xintercept = c(zoom_start, zoom_end), linetype = "dashed", color = "gray") +
+  labs(title = "Instantaneous Heart Rate Over Time",
+       x = "Time (s)", y = "Heart Rate (BPM)") +
+  theme_minimal()
+
+
+# Zoomed-in HR plot
+p2 <- ggplot(ECG10[ECG09$Timestamp >= zoom_start & ECG10$Timestamp <= zoom_end & !is.na(ECG10$HR_BPM), ],
+             aes(x = Timestamp, y = HR_BPM)) +
+  geom_point(color = "red", size = 1.5) +
+  geom_line(color = "darkred", alpha = 0.7) +
+  labs(title = paste0("Zoom: ", zoom_start, "–", zoom_end, "s"),
+       x = "Time (s)", y = "HR (BPM)") +
+  theme_minimal()
+
+# Combine with inset
+combined <- ggpubr::ggarrange(p1, p2, 
+                              ncol = 1, nrow = 2, 
+                              heights = c(2, 1))  # Make zoom smaller
+
+# Show the result
+print(combined)
+```
+
+## Create data sets for only peaks
+
+```{r}
+# Datasets per participant with only peaks
+ECG01_Rpeaks <- ECG01 %>% 
+  filter(IsPeak == 1)
+
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG01_Rpeaks$RR_interval, na.rm = TRUE)
+# The shortest time between beats was 0.4070857 seconds, while the longest 2.6529938 seconds.
+
+# Datasets per participant with only peaks
+ECG02_Rpeaks <- ECG02 %>% 
+  filter(IsPeak == 1)
+
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG02_Rpeaks$RR_interval, na.rm = TRUE)
+
+#ECG04_Rpeaks <- ECG04 %>% 
+#  filter(IsPeak == 1)
+
+# Datasets per participant with only peaks
+ECG05_Rpeaks <- ECG05 %>% 
+  filter(IsPeak == 1)
+
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG05_Rpeaks$RR_interval, na.rm = TRUE)
+
+# Datasets per participant with only peaks
+ECG06_Rpeaks <- ECG06 %>% 
+  filter(IsPeak == 1)
+
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG06_Rpeaks$RR_interval, na.rm = TRUE)
+
+# Datasets per participant with only peaks
+ECG09_Rpeaks <- ECG09 %>% 
+  filter(IsPeak == 1)
+
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG09_Rpeaks$RR_interval, na.rm = TRUE)
+
+# Datasets per participant with only peaks
+ECG10_Rpeaks <- ECG10 %>% 
+  filter(IsPeak == 1)
+
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(ParticipantID = 1) %>%
+  relocate(ParticipantID, .before = 1)
+
+# RR_interval range
+range(ECG10_Rpeaks$RR_interval, na.rm = TRUE)
+
+# Dataset of all participants with only peaks
+All_ECG_Rpeaks <- bind_rows(
+  ECG01_Rpeaks %>% mutate(ParticipantID = "1"),
+  ECG02_Rpeaks %>% mutate(ParticipantID = "2"),
+  ECG05_Rpeaks %>% mutate(ParticipantID = "5"),
+  ECG06_Rpeaks %>% mutate(ParticipantID = "6"),
+  ECG09_Rpeaks %>% mutate(ParticipantID = "9"),
+  ECG10_Rpeaks %>% mutate(ParticipantID = "10")
+)
+
+```
+
+## Differentiation of Points of Interest in HRV
+
+### Using Moving Average (rr_ma_diff)
+
+#### Participant 01
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(10, 12, 15)
+
+for (thresh in thresholds) {
+  stress_points <- ECG01_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+-   At 10% drop in R-R intervals, you detect a lot of stress points (156), which could include some false positives or milder stress responses.
+
+-   At 12%, the number drops significantly (66), focusing on stronger, more confident stress events.
+
+-   At 15%, you get very few but likely the most intense stress points (18), reducing noise but possibly missing subtle stress.
+
+```{r}
+# Step 2: Filter for acute stress points (>= 8% decrease)
+ECG01_stress_ma <- ECG01_Rpeaks %>%
+  filter(RR_ma_change_pct <= -12) 
+
+# Step 3: Plot detections
+ggplot(ECG01_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG01_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "P1 Detected Acute Stress Based on R-R Interval Drop ≥ 12%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+-   Gray and blue line: RR intervals over time
+
+-   Red points: Moments when RR interval dropped more than 12% compared to the recent 5-beat moving average.
+
+-   Stress = shorter RR interval (heart beats faster)
+
+#### Participant 02
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(10, 12, 15)
+
+for (thresh in thresholds) {
+  stress_points <- ECG02_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+```{r}
+# Step 2: Filter for acute stress points (>= 12% decrease)
+ECG02_stress_ma <- ECG02_Rpeaks %>%
+  filter(RR_ma_change_pct <= -12) 
+
+# Step 3: Plot detections
+ggplot(ECG02_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG02_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "Detected Acute Stress Based on R-R Interval Drop ≥ 12%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Participant 05
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(10, 12, 15)
+
+for (thresh in thresholds) {
+  stress_points <- ECG05_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+```{r}
+# Step 2: Filter for acute stress points (>= 12% decrease)
+ECG05_stress_ma <- ECG05_Rpeaks %>%
+  filter(RR_ma_change_pct <= -12) 
+
+# Step 3: Plot detections
+ggplot(ECG05_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG05_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "Detected Acute Stress Based on R-R Interval Drop ≥ 12%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Participant 06
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(10, 12, 15, 20)
+
+for (thresh in thresholds) {
+  stress_points <- ECG06_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+Participant 6 will have 15% threshold due to the number of stress points detected.
+
+```{r}
+# Step 2: Filter for acute stress points (>= 20% decrease)
+ECG06_stress_ma <- ECG06_Rpeaks %>%
+  filter(RR_ma_change_pct <= -15) 
+
+# Step 3: Plot detections
+ggplot(ECG06_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG06_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "Detected Acute Stress Based on R-R Interval Drop ≥ 20%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Participant 09
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(8, 10, 12, 15)
+
+for (thresh in thresholds) {
+  stress_points <- ECG09_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+Participant 9 will be the only one with 8% threshold due to the number of stress points detected.
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), 
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma 
+  ) 
+
+# Step 2: Filter for acute stress points (>= 8% decrease)
+ECG09_stress_ma <- ECG09_Rpeaks %>%
+  filter(RR_ma_change_pct <= -8) 
+
+# Step 3: Plot detections
+ggplot(ECG09_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG09_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "Detected Acute Stress Based on R-R Interval Drop ≥ 8%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+#### Participant 10
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+# Calculate moving average
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), # Moving average = local baseline
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma # Percent change from recent values (e.g., a sudden drop would = possible stress)
+  ) 
+
+# This gives the % change from the recent average (5-beat window)
+
+# Check different thresholds (Compare # of stress points detected)
+thresholds <- c(10, 12, 15, 20, 30, 35)
+
+for (thresh in thresholds) {
+  stress_points <- ECG10_Rpeaks %>%
+    filter(RR_ma_change_pct <= -thresh)
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", nrow(stress_points), "\n"))
+}
+```
+
+Participant 10 will have 15% threshold due to the number of stress points detected.
+
+```{r}
+# Step 1: Create a % change column in the R-R dataframe
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(
+    RR_ma = zoo::rollapply(RR_interval, width = 5, FUN = mean, fill = NA, align = "right"), 
+    RR_ma_change_pct = 100 * (RR_interval - RR_ma) / RR_ma 
+  ) 
+
+# Step 2: Filter for acute stress points (>= 35% decrease)
+ECG10_stress_ma <- ECG10_Rpeaks %>%
+  filter(RR_ma_change_pct <= -15) 
+
+# Step 3: Plot detections
+ggplot(ECG10_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "lightblue", alpha = 0.5) +
+  geom_point(data = ECG10_stress_ma, aes(x = Timestamp, y = RR_interval), color = "red", size = 1.5) +
+  labs(title = "Detected Acute Stress Based on R-R Interval Drop ≥ 35%",
+       x = "Time (s)", y = "R-R Interval (s)") +
+  theme_minimal()
+```
+
+### Evaluation of Observation \# v. Stress points
+
+#### RR % Change Over Time
+
+Thresholds for RR % drop were tailored per participant based on signal range and visual inspection of change patterns, with values ranging from 8% to 15%.
+
+--\> THESIS: An RR interval decrease threshold of 12% from moving average was applied across participants, unless signal characteristics warranted individual adjustment (e.g., Participant 09: −8%; Participant 06: −15%)
+
+```{r}
+# Check RR and HR over time
+ggplot(ECG01_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -12, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 01")
+
+ggplot(ECG02_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -12, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 02")
+
+ggplot(ECG05_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -12, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 05")
+
+ggplot(ECG06_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -15, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 06")
+
+ggplot(ECG09_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -8, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 09")
+
+ggplot(ECG10_Rpeaks, aes(x = Timestamp, y = RR_ma_change_pct)) +
+  geom_line(alpha = 0.5) +
+  geom_hline(yintercept = -15, color = "red", linetype = "dashed") +
+  labs(title = "RR % Change Over Time - Participant 10")
+
+```
+
+-   Main stress indicator plot --\> Percent change below red dashed line = stress candidate
+
+-   Shows how often and when these dips occur
+
+### Using Individual Baselines-- Breathing exercises (RR_baseline)
+
+#### Participant 01
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 317
+baseline2_start <- 1210
+baseline2_end   <- 1504
+
+# Step 2: Extract RR values in baseline ranges from ECG01_Rpeaks
+baseline_rr_values <- ECG01_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG01_Rpeaks table 
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG01_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 30%) 
+ECG01_stress_baseline <- ECG01_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -30) # Acute stress = drop of 30% or more from baseline
+
+# Delete the extra columns 
+ECG01_stress_baseline <- ECG01_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+#### Participant 02
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 317
+baseline2_start <- 1210
+baseline2_end   <- 1504
+
+# Step 2: Extract RR values in baseline ranges from ECG02_Rpeaks
+baseline_rr_values <- ECG02_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG02 table 
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG02_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 30%) 
+ECG02_stress_baseline <- ECG02_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -30) # Acute stress = drop of 30% or more from baseline
+
+# Delete the extra rows 
+ECG02_stress_baseline <- ECG02_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+#### Participant 05
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 310
+baseline2_start <- 1212
+baseline2_end   <- 1501
+
+# Step 2: Extract RR values in baseline ranges from ECG05_Rpeaks
+baseline_rr_values <- ECG05_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG05 table 
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG05_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 30%) 
+ECG05_stress_baseline <- ECG05_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -30) # Acute stress = drop of 30% or more from baseline
+
+# Delete the extra rows 
+ECG05_stress_baseline <- ECG05_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+#### Participant 06
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 310
+baseline2_start <- 1212
+baseline2_end   <- 1501
+
+# Step 2: Extract RR values in baseline ranges from ECG06_Rpeaks
+baseline_rr_values <- ECG06_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG01 table 
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG06_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 30%) 
+ECG06_stress_baseline <- ECG06_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -30) # Acute stress = drop of 30% or more from baseline
+
+# Delete the extra rows 
+ECG06_stress_baseline <- ECG06_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+#### Participant 09
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 312
+baseline2_start <- 1419
+baseline2_end   <- 1718
+
+# Step 2: Extract RR values in baseline ranges from ECG09_Rpeaks
+baseline_rr_values <- ECG09_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG01 table 
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG09_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 15%) 
+ECG09_stress_baseline <- ECG09_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -15) # Acute stress = drop of 15% or more from baseline
+
+# Delete the extra rows 
+ECG09_stress_baseline <- ECG09_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+#### Participant 10
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 0
+baseline1_end   <- 312
+baseline2_start <- 1419
+baseline2_end   <- 1718
+
+# Step 2: Extract RR values in baseline ranges from ECG09_Rpeaks
+baseline_rr_values <- ECG10_Rpeaks %>%
+  filter((Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+         (Timestamp >= baseline2_start & Timestamp <= baseline2_end)) %>%
+  pull(RR_interval)
+
+# Step 3: Compute the global RR baseline mean
+rr_baseline_mean <- mean(baseline_rr_values, na.rm = TRUE)
+
+# Step 4: Add RR % change from baseline to full ECG01 table 
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(
+    RR_baseline = rr_baseline_mean,
+    RR_baseline_change_pct = 100 * (RR_interval - RR_baseline) / RR_baseline
+  )
+
+# Check for thresholds
+thresholds <- c(10, 12, 15, 20, 25, 30)
+
+for (thresh in thresholds) {
+  count <- ECG10_Rpeaks %>%
+    filter(RR_baseline_change_pct <= -thresh) %>%
+    nrow()
+  
+  cat(paste0("Threshold: ", thresh, "% - Stress points detected: ", count, "\n"))
+}
+
+```
+
+```{r}
+# Step 5: Create a third dataset with only stress events (RR drop >= 30%) 
+ECG10_stress_baseline <- ECG10_Rpeaks %>%
+  filter(RR_baseline_change_pct <= -30) # Acute stress = drop of 30% or more from baseline
+
+# Delete the extra columns 
+ECG10_stress_baseline <- ECG10_stress_baseline %>%
+  select(-RR_ma, -RR_ma_change_pct)
+```
+
+## Analysing Stress Events
+
+### Time-Series Plot with Stress Highlighted
+
+#### Participant 01
+
+```{r}
+ggplot(ECG01_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG01_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events (Zoomed)",
+       x = "Time (s)", y = "RR Interval (s)") +
+  coord_cartesian(xlim = c(0, 2000)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+-   Clusters of red points indicate where RR intervals dropped sharply (stress responses).
+
+-   An RR interval far well below the blue dashed line may indicate possible acute stress.
+
+-   Density, frequency, and duration of red points show how intense or prolongued the stress responses are.
+
+#### Participant 02
+
+```{r}
+ggplot(ECG02_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG02_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events",
+       x = "Time (s)", y = "RR Interval (ms)") +
+  coord_cartesian(xlim = c(0, 2000)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+#### Participant 05
+
+```{r}
+ggplot(ECG05_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG05_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events",
+       x = "Time (s)", y = "RR Interval (ms)") +
+  coord_cartesian(xlim = c(0, 2000)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+#### Participant 06
+
+```{r}
+ggplot(ECG06_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG06_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events",
+       x = "Time (s)", y = "RR Interval (ms)") +
+  coord_cartesian(xlim = c(0, 2000)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+#### Participant 09
+
+```{r}
+ggplot(ECG09_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG09_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events",
+       x = "Time (s)", y = "RR Interval (ms)") +
+  coord_cartesian(xlim = c(0, 2000)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+#### Participant 10
+
+```{r}
+ggplot(ECG10_Rpeaks, aes(x = Timestamp, y = RR_interval)) +
+  geom_line(color = "gray") +
+  geom_point(data = ECG10_stress_baseline, aes(x = Timestamp, y = RR_interval), color = "red") +
+  geom_hline(yintercept = rr_baseline_mean, linetype = "dashed", color = "blue") +
+  labs(title = "RR Intervals Over Time with Stress Events",
+       x = "Time (s)", y = "RR Interval (ms)") +
+  coord_cartesian(xlim = c(0, 1750)) + # Zoom (remove for complete graph)
+  theme_minimal()
+```
+
+## Create binary values for RR_ma_change_pct and RR_baseline_change_pct (over threshold = stress =1) in ECGXX_Rpeaks
+
+```{r}
+# Add binary flags
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -12, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -30, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+
+# Add binary flags
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -12, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -30, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+
+# Add binary flags
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -12, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -30, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+
+# Add binary flags
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -15, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -30, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+
+# Add binary flags
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -8, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -15, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+
+# Add binary flags
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(
+    RR_ma_flag = ifelse(RR_ma_change_pct >= -15, 1, 0),
+    RR_baseline_flag = ifelse(RR_baseline_change_pct >= -30, 1, 0)
+  ) %>%
+  # Reorder columns to place flags next to corresponding % columns
+  relocate(RR_ma_flag, .after = RR_ma_change_pct) %>%
+  relocate(RR_baseline_flag, .after = RR_baseline_change_pct)
+```
+
+## Categorisation of Autogenerated\_\_period + Distribution of % Change from Baseline
+
+#### Participant 01
+
+```{r}
+baseline1_start <- 0
+baseline1_end <- 317
+baseline2_start <- 1210
+baseline2_end <- 1504
+
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -30 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG01_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -30, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+
+```
+
+-   X-axis: How much each RR interval deviates from the global baseline mean.
+
+    -   Values BELOW 0 indicate a DECREASE (faster heart rate = possible stress)
+
+-   Y-axis: A smoothed representation of how often values occur. Higher peaks = more common RR changes in that range.
+
+-   Blue curve: Distribution of RR changes during baseline Autogenerated_periods. Should center around 0%, since these are used to calculate the baseline.
+
+-   Red curve: Distribution during stress Autogenerated_periods. It should generally SHIFT LEFT, indicating more negative % changes (heart rate increases)
+
+-   Red vertical line at -8%: This is the stress detection threshold (when RR is 8% LOWER than baseline. Any value to the left of this line qualifies as stress in my detection logic.
+
+    **What to look for:**
+
+-   Separation of curves = effective capture of physiological differences.
+
+-   Stress curve peaking left of -8% = supports the threshold as being a meaningful marker.
+
+-   Baseline around 0% = confirms baseline Autogenerated_periods are relatively stable.
+
+#### Participant 02
+
+```{r}
+baseline1_start <- 0
+baseline1_end <- 317
+baseline2_start <- 1210
+baseline2_end <- 1504
+
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -30 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG02_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -30, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+#### Participant 05
+
+```{r}
+baseline1_start <- 0
+baseline1_end   <- 310
+baseline2_start <- 1212
+baseline2_end   <- 1501
+
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -30 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG05_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -30, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+#### Participant 06
+
+```{r}
+baseline1_start <- 0
+baseline1_end   <- 310
+baseline2_start <- 1212
+baseline2_end   <- 1501
+
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -30 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG06_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -30, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+#### Participant 09
+
+```{r}
+baseline1_start <- 0
+baseline1_end   <- 312
+baseline2_start <- 1419
+baseline2_end   <- 1718
+
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -15 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG09_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -15, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+#### Participant 10
+
+```{r}
+baseline1_start <- 0
+baseline1_end   <- 312
+baseline2_start <- 1419
+baseline2_end   <- 1718
+
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(
+    Autogenerated_period = case_when(
+      (Timestamp >= baseline1_start & Timestamp <= baseline1_end) |
+      (Timestamp >= baseline2_start & Timestamp <= baseline2_end) ~ "Baseline",
+      RR_baseline_change_pct <= -30 ~ "Stress",
+      TRUE ~ "Other"
+    )
+  )
+
+ggplot(ECG10_Rpeaks %>% filter(Autogenerated_period != "Other"), aes(x = RR_baseline_change_pct, fill = Autogenerated_period)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = -30, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of RR % Change from Baseline",
+       x = "% Change from Baseline", y = "Density") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+### Count of Stress Events Over Time (Histogram)
+
+#### Participant 01
+
+```{r}
+ggplot(ECG01_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+-   X-axis: Time (seconds) during the entire recording
+
+-   Y-axis: Number of data points (stress events) identified in 60-second bins.
+
+-   Each red bar represents how many RR intervals met your stress threshold in that minute.
+
+So,
+
+-   Peaks in the histogram indicate intense or prolongued stress Autogenerated_periods.
+
+-   Flat regions (no bars) indicate no stress events during that timeframe
+
+#### Participant 02
+
+```{r}
+ggplot(ECG02_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+#### Participant 05
+
+```{r}
+ggplot(ECG05_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+#### Participant 06
+
+```{r}
+ggplot(ECG06_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+#### Participant 09
+
+```{r}
+ggplot(ECG09_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+#### Participant 10
+
+```{r}
+ggplot(ECG10_stress_baseline, aes(x = Timestamp)) +
+  geom_histogram(binwidth = 60, fill = "red", color = "white") +  # binwidth in seconds
+  labs(title = "Number of Stress Events Over Time",
+       x = "Time (s)", y = "Count of Stress Events (per minute)") +
+  theme_minimal()
+```
+
+## Duration of Stress Clusters
+
+This code identifies clusters of consecutive stress points in time by assigning a new `group_id` whenever there's a gap of more than 3 seconds between detections—assuming this marks a new stress episode. It then summarizes each episode by calculating its start and end time, duration, and number of detected points. This helps distinguish between brief, scattered detections and sustained stress periods.
+
+### Participant 01
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG01_stress_baseline <- ECG01_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG01_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+# Plot durations
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+-   X-axis: Start time of each stress episode.
+
+-   Y-axis: Duration in seconds.
+
+-   Each red bar: One continous episode.
+
+So,
+
+-   Tall bars = longer stress Autogenerated_periods
+
+-   Frequent bars = repeated stress episodes
+
+-   Clusters in the X-axis = denser stress activity in that part of the session.
+
+### Participant 02
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG02_stress_baseline <- ECG02_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG02_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+### Participant 05
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG05_stress_baseline <- ECG05_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG05_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+### Participant 06
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG06_stress_baseline <- ECG06_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG06_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+### Participant 09
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG09_stress_baseline <- ECG09_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG09_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+### Participant 10
+
+```{r}
+# Find consecutive stress events and identfy durations
+# Add a grouping ID for consecutive stress events
+ECG10_stress_baseline <- ECG10_stress_baseline %>%
+  arrange(Timestamp) %>%
+  mutate(gap = c(0, diff(Timestamp)),
+         group_id = cumsum(gap > 3))  # Assume >3 seconds = new stress cluster
+
+# Summarise stress episodes
+stress_episodes <- ECG10_stress_baseline %>%
+  group_by(group_id) %>%
+  summarise(
+    start_time = min(Timestamp),
+    end_time = max(Timestamp),
+    duration = end_time - start_time,
+    num_points = n()
+  )
+
+# View episodes
+print(stress_episodes)
+count(stress_episodes)
+```
+
+```{r}
+ggplot(stress_episodes, aes(x = start_time, y = duration)) +
+  geom_col(fill = "red") +
+  labs(title = "Stress Episode Durations Over Time",
+       x = "Start Time (s)", y = "Duration (s)") +
+  theme_minimal()
+```
+
+## Boxplots of RR in Baseline vs Stress
+
+### Participant 01
+
+```{r}
+ECG01_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+-   If the box and median line for Stress are lower than for Baseline, this suggests that RR intervals are shorter during stress.
+
+    -   Shorter RR = faster heart rate, consistent with stress responses.
+
+-   If there is a little overlap between the boxes or whiskers, this implies a clear physiological distinction between baseline and stress.
+
+-   The wider the box, the greater the variability in RR intervals during that Autogenerated_period
+
+    -   Outliers indicate sudden spikes or drops
+
+### Participant 02
+
+```{r}
+ECG02_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+### Participant 05
+
+```{r}
+ECG05_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+### Participant 06
+
+```{r}
+ECG06_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+### Participant 09
+
+```{r}
+ECG09_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+### Participant 10
+
+```{r}
+ECG10_Rpeaks %>%
+  filter(Autogenerated_period %in% c("Baseline", "Stress")) %>%
+  ggplot(aes(x = Autogenerated_period, y = RR_interval, fill = Autogenerated_period)) +
+  geom_boxplot() +
+  labs(title = "Comparison of RR Intervals: Baseline vs Stress",
+       x = "Autogenerated_period", y = "RR Interval (ms)") +
+  scale_fill_manual(values = c("Baseline" = "blue", "Stress" = "red")) +
+  theme_minimal()
+```
+
+## Create Binary Values for HR_BPM for both ECG0X and ECG0X_Rpeaks
+
+### Participant 01
+
+-   If HR is higher than 100 = stress (1)
+
+-   If HR is between 60-100 = normal/neutral (2)
+
+-   If HR is lower than 60 = calm state (0)
+
+```{r}
+ECG01_Rpeaks <- ECG01_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+# Count the number of each HR_binary category
+ECG01_Rpeaks %>% 
+  count(HR_binary)
+```
+
+### Participant 02
+
+```{r}
+ECG02_Rpeaks <- ECG02_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+
+# Count the number of each HR_binary category
+ECG02_Rpeaks %>% 
+  count(HR_binary)
+```
+
+### Participant 05
+
+```{r}
+ECG05_Rpeaks <- ECG05_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+# Count the number of each HR_binary category
+ECG05_Rpeaks %>% 
+  count(HR_binary)
+```
+
+### Participant 06
+
+```{r}
+ECG06_Rpeaks <- ECG06_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+# Count the number of each HR_binary category
+ECG06_Rpeaks %>% 
+  count(HR_binary)
+```
+
+### Participant 09
+
+```{r}
+ECG09_Rpeaks <- ECG09_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+
+# Count the number of each HR_binary category
+ECG09_Rpeaks %>% 
+  count(HR_binary)
+```
+
+### Participant 10
+
+```{r}
+ECG10_Rpeaks <- ECG10_Rpeaks %>%
+  mutate(HR_binary = case_when(
+    HR_BPM > 100 ~ 1,
+    HR_BPM <= 100 ~ 0,
+    TRUE ~ NA
+  )) %>%
+  relocate(HR_binary, .after = HR_BPM)
+
+
+# Count the number of each HR_binary category
+ECG10_Rpeaks %>% 
+  count(HR_binary)
+```
+
+## Create All_ECG dataset
+
+```{r}
+# Add ParticipantID to each dataset
+ECG01 <- ECG01 %>% mutate(ParticipantID = "1")
+ECG02 <- ECG02 %>% mutate(ParticipantID = "2")
+ECG05 <- ECG05 %>% mutate(ParticipantID = "5")
+ECG06 <- ECG06 %>% mutate(ParticipantID = "6")
+ECG09 <- ECG09 %>% mutate(ParticipantID = "9")
+ECG10 <- ECG10 %>% mutate(ParticipantID = "10")
+```
+
+### Add missing variables (from the other data sets) to the main ECG data set
+
+#### Participant 01
+
+```{r}
+rpeaks_vars <- ECG01_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG01 <- ECG01 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+#### Participant 02
+
+```{r}
+rpeaks_vars <- ECG02_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG02 <- ECG02 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+#### Participant 05
+
+```{r}
+rpeaks_vars <- ECG05_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG05 <- ECG05 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+#### Participant 06
+
+```{r}
+rpeaks_vars <- ECG06_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG06 <- ECG06 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+#### Participant 09
+
+```{r}
+rpeaks_vars <- ECG09_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG09 <- ECG09 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+#### Participant 10
+
+```{r}
+rpeaks_vars <- ECG10_Rpeaks %>%
+  select(Index, Timestamp, RR_ma, RR_ma_change_pct, RR_ma_flag,
+         RR_baseline, RR_baseline_change_pct, RR_baseline_flag,
+         HR_binary)
+
+# Join R-peak values into ECG01 (non-peaks will get NA in these columns)
+ECG10 <- ECG10 %>%
+  left_join(rpeaks_vars, by = "Index")
+```
+
+### Merge the data sets into All_ECG
+
+```{r}
+# Combine all into one dataframe
+All_ECG <- bind_rows(ECG01, ECG02, ECG05, ECG06, ECG09, ECG10)
+
+# Rearrange columns so ParticipantID appears after OG_Timestamp
+All_ECG <- All_ECG %>% relocate(ParticipantID, .after = OG_Timestamp)
+
+All_ECG <- All_ECG %>%
+  select(-Timestamp.y)
+
+All_ECG <- All_ECG %>%
+  rename(Timestamp = Timestamp.x)
+```
+
+## Save the data sets + document as a .docx
+
+```{r}
+# Save each dataset to a CSV file
+write.csv(ECG01, "ECG01_dataset.csv", row.names = FALSE)
+write.csv(ECG02, "ECG02_dataset.csv", row.names = FALSE)
+write.csv(ECG05, "ECG05_dataset.csv", row.names = FALSE)
+write.csv(ECG06, "ECG06_dataset.csv", row.names = FALSE)
+write.csv(ECG09, "ECG09_dataset.csv", row.names = FALSE)
+write.csv(ECG10, "ECG10_dataset.csv", row.names = FALSE)
+write.csv(All_ECG, "All_ECG_PostFeedback.csv", row.names = FALSE)
+```
+
+```{r}
+write.csv(ECG01_Rpeaks, "ECG01_Rpeaks.csv", row.names = FALSE)
+write.csv(ECG02_Rpeaks, "ECG02_Rpeaks.csv", row.names = FALSE)
+#write.csv(ECG04_Rpeaks, "ECG04_Rpeaks.csv", row.names = FALSE)
+write.csv(ECG05_Rpeaks, "ECG05_Rpeaks.csv", row.names = FALSE)
+write.csv(ECG06_Rpeaks, "ECG06_Rpeaks.csv", row.names = FALSE)
+write.csv(ECG09_Rpeaks, "ECG09_Rpeaks.csv", row.names = FALSE)
+write.csv(ECG10_Rpeaks, "ECG10_Rpeaks.csv", row.names = FALSE)
+write.csv(All_ECG_Rpeaks, "All_ECG_Rpeaks.csv", row.names = FALSE)
+```
+
+```{r}
+rmarkdown::render("ECG_analysis.qmd", output_format = "word_document")
+```

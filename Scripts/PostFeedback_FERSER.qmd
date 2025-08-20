@@ -1,0 +1,1013 @@
+---
+title: "FERSER"
+format: html
+editor: visual
+---
+
+```{r}
+# Install packages
+install.packages("tidyverse", dependencies = TRUE)
+install.packages("data.table")
+install.packages("dplyr")
+install.packages("signal")
+install.packages("plotly")
+install.packages("pracma")
+install.packages("ggpubr")
+install.packages("zoo")
+install.packages("webshot")
+install.packages("gmodels")
+install.packages("lubridate")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("ggforce")
+install.packages("cowplot")
+
+
+# Download libraries
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(signal)
+library(plotly)
+library(pracma)
+library(ggpubr)
+library(zoo)
+library(webshot)
+library(gmodels)
+library(lubridate)
+library(ggplot2)
+library(tidyr)
+library(ggforce)
+library(cowplot)
+```
+
+## Load data sets
+
+```{r}
+setwd("~/Desktop/R_docs")
+
+FERSER_A <- read.csv("FER_SER_emotions_LaptopA.csv")
+FERSER_B <- read.csv("FER_SER_emotions_LaptopB.csv")
+FERSER_C <- read.csv("FER_SER_emotions_LaptopC.csv")
+FERSER_D1 <- read.csv("FER_SER_emotions_LaptopD1.csv")
+FERSER_D2 <- read.csv("FER_SER_emotions_LaptopD2.csv")
+```
+
+### Convert to numerical
+
+```{r}
+# Convert Participant.ID to numeric
+FERSER_A <- FERSER_A %>%
+  mutate(Participant.ID = as.numeric(Participant.ID))
+FERSER_B <- FERSER_B %>%
+  mutate(Participant.ID = as.numeric(Participant.ID))
+FERSER_C <- FERSER_C %>%
+  mutate(Participant.ID = as.numeric(Participant.ID))
+FERSER_D1 <- FERSER_D1 %>%
+  mutate(Participant.ID = as.numeric(Participant.ID))
+FERSER_D2 <- FERSER_D2 %>%
+  mutate(Participant.ID = as.numeric(Participant.ID))
+
+```
+
+## Create binary values for negative emotion (=1) v. positive emotion (=0)
+
+```{r}
+FERSER_A <- FERSER_A %>%
+  mutate(
+    Facial_PosNeg = case_when(
+      Facial.Emotion %in% c("happy", "surprise", "neutral") ~ 0,
+      Facial.Emotion %in% c("sad", "angry", "fear", "disgust") ~ 1,
+      Facial.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    ),
+    Speech_PosNeg = case_when(
+      Speech.Emotion %in% c("hap", "neu") ~ 0,
+      Speech.Emotion %in% c("sad", "ang") ~ 1,
+      Speech.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  relocate(Facial_PosNeg, .after = Facial.Emotion) %>%
+  relocate(Speech_PosNeg, .after = Speech.Emotion)
+
+FERSER_B <- FERSER_B %>%
+  mutate(
+    Facial_PosNeg = case_when(
+      Facial.Emotion %in% c("happy", "surprise", "neutral") ~ 0,
+      Facial.Emotion %in% c("sad", "angry", "fear", "disgust") ~ 1,
+      Facial.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    ),
+    Speech_PosNeg = case_when(
+      Speech.Emotion %in% c("hap", "neu") ~ 0,
+      Speech.Emotion %in% c("sad", "ang") ~ 1,
+      Speech.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  relocate(Facial_PosNeg, .after = Facial.Emotion) %>%
+  relocate(Speech_PosNeg, .after = Speech.Emotion)
+
+FERSER_C <- FERSER_C %>%
+  mutate(
+    Facial_PosNeg = case_when(
+     Facial.Emotion %in% c("happy", "surprise", "neutral") ~ 0,
+      Facial.Emotion %in% c("sad", "angry", "fear", "disgust") ~ 1,
+      Facial.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    ),
+    Speech_PosNeg = case_when(
+      Speech.Emotion %in% c("hap", "neu") ~ 0,
+      Speech.Emotion %in% c("sad", "ang") ~ 1,
+      Speech.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  relocate(Facial_PosNeg, .after = Facial.Emotion) %>%
+  relocate(Speech_PosNeg, .after = Speech.Emotion)
+
+FERSER_D1 <- FERSER_D1 %>%
+  mutate(
+    Facial_PosNeg = case_when(
+      Facial.Emotion %in% c("happy", "surprise", "neutral") ~ 0,
+      Facial.Emotion %in% c("sad", "angry", "fear", "disgust") ~ 1,
+      Facial.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    ),
+    Speech_PosNeg = case_when(
+      Speech.Emotion %in% c("hap", "neu") ~ 0,
+      Speech.Emotion %in% c("sad", "ang") ~ 1,
+      Speech.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  relocate(Facial_PosNeg, .after = Facial.Emotion) %>%
+  relocate(Speech_PosNeg, .after = Speech.Emotion)
+
+FERSER_D2 <- FERSER_D2 %>%
+  mutate(
+    Facial_PosNeg = case_when(
+     Facial.Emotion %in% c("happy", "surprise", "neutral") ~ 0,
+      Facial.Emotion %in% c("sad", "angry", "fear", "disgust") ~ 1,
+      Facial.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    ),
+    Speech_PosNeg = case_when(
+      Speech.Emotion %in% c("hap", "neu") ~ 0,
+      Speech.Emotion %in% c("sad", "ang") ~ 1,
+      Speech.Emotion == "Error" ~ NA_real_,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  relocate(Facial_PosNeg, .after = Facial.Emotion) %>%
+  relocate(Speech_PosNeg, .after = Speech.Emotion)
+```
+
+## Create binary values for Confidence \> 0
+
+```{r}
+FERSER_A$Facial.ConfBinary <- ifelse(FERSER_A$Facial.Confidence == 0, 0, 1)
+FERSER_B$Facial.ConfBinary <- ifelse(FERSER_B$Facial.Confidence == 0, 0, 1)
+FERSER_C$Facial.ConfBinary <- ifelse(FERSER_C$Facial.Confidence == 0, 0, 1)
+FERSER_D1$Facial.ConfBinary <- ifelse(FERSER_D1$Facial.Confidence == 0, 0, 1)
+FERSER_D2$Facial.ConfBinary <- ifelse(FERSER_D2$Facial.Confidence == 0, 0, 1)
+
+FERSER_A$Speech.ConfBinary <- ifelse(FERSER_A$Speech.Confidence == 0, 0, 1)
+FERSER_B$Speech.ConfBinary <- ifelse(FERSER_B$Speech.Confidence == 0, 0, 1)
+FERSER_C$Speech.ConfBinary <- ifelse(FERSER_C$Speech.Confidence == 0, 0, 1)
+FERSER_D1$Speech.ConfBinary <- ifelse(FERSER_D1$Speech.Confidence == 0, 0, 1)
+FERSER_D2$Speech.ConfBinary <- ifelse(FERSER_D2$Speech.Confidence == 0, 0, 1)
+```
+
+### Reorder the new columns
+
+```{r}
+FERSER_A <- FERSER_A %>%
+  relocate(Facial.ConfBinary, .after = Facial.Confidence)
+FERSER_B <- FERSER_B %>%
+  relocate(Facial.ConfBinary, .after = Facial.Confidence)
+FERSER_C <- FERSER_C %>%
+  relocate(Facial.ConfBinary, .after = Facial.Confidence)
+FERSER_D1 <- FERSER_D1 %>%
+  relocate(Facial.ConfBinary, .after = Facial.Confidence)
+FERSER_D2 <- FERSER_D2 %>%
+  relocate(Facial.ConfBinary, .after = Facial.Confidence)
+
+FERSER_A <- FERSER_A %>%
+  relocate(Speech.ConfBinary, .after = Speech.Confidence)
+FERSER_B <- FERSER_B %>%
+  relocate(Speech.ConfBinary, .after = Speech.Confidence)
+FERSER_C <- FERSER_C %>%
+  relocate(Speech.ConfBinary, .after = Speech.Confidence)
+FERSER_D1 <- FERSER_D1 %>%
+  relocate(Speech.ConfBinary, .after = Speech.Confidence)
+FERSER_D2 <- FERSER_D2 %>%
+  relocate(Speech.ConfBinary, .after = Speech.Confidence)
+```
+
+## Divide data per participant
+
+```{r}
+# Filter datasets by participant number
+FERSER_01 <- FERSER_A %>% filter(Participant.ID == 1)
+FERSER_05 <- FERSER_A %>% filter(Participant.ID == 5)
+FERSER_09 <- FERSER_A %>% filter(Participant.ID == 9)
+
+FERSER_02 <- FERSER_B %>% filter(Participant.ID ==2)
+FERSER_06 <- FERSER_B %>% filter(Participant.ID ==6)
+FERSER_10 <- FERSER_B %>% filter(Participant.ID ==10)
+```
+
+## Mutate timestamps from real-time to relative to start_time in seconds
+
+### Participants 01 and 02
+
+```{r}
+# Step 1: Keep original timestamp
+FERSER_01 <- FERSER_01 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_02 <- FERSER_02 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_01 <- FERSER_01 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+FERSER_02 <- FERSER_02 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+# Step 2: Set the start reference time
+start_time <- ymd_hms("2025-05-12 14:48:40")
+
+# Step 3: Create new 'Timestamp' variable in seconds, set NAs before start_time
+FERSER_01 <- FERSER_01 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+
+FERSER_02 <- FERSER_02 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+```
+
+### Participants 05 and 06
+
+```{r}
+# Step 1: Keep original timestamp
+FERSER_05 <- FERSER_05 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_06 <- FERSER_06 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_05 <- FERSER_05 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+FERSER_06 <- FERSER_06 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+# Step 2: Set the start reference time
+start_time <- ymd_hms("2025-05-13 11:06:41")
+
+# Step 3: Create new 'Timestamp' variable in seconds, set NAs before start_time
+FERSER_05 <- FERSER_05 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+
+FERSER_06 <- FERSER_06 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+```
+
+### Participants 09 and 10
+
+```{r}
+# Step 1: Keep original timestamp
+FERSER_09 <- FERSER_09 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_10 <- FERSER_10 %>%
+  mutate(Realtime_Timestamp = as.POSIXct(Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+
+FERSER_09 <- FERSER_09 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+FERSER_10 <- FERSER_10 %>%
+  relocate(Realtime_Timestamp, .before = 1)
+
+# Step 2: Set the start reference time
+start_time <- ymd_hms("2025-05-14 10:51:49")
+
+# Step 3: Create new 'Timestamp' variable in seconds, set NAs before start_time
+FERSER_09 <- FERSER_09 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+
+FERSER_10 <- FERSER_10 %>%
+  mutate(Timestamp = if_else(Realtime_Timestamp >= start_time,
+                             as.numeric(difftime(Realtime_Timestamp, start_time, units = "secs")),
+                             NA_real_))
+```
+
+## Delete timestamps with NAs (before Start_Baseline1)
+
+```{r}
+FERSER_01 <- FERSER_01 %>%
+  filter(!is.na(Timestamp))
+FERSER_02 <- FERSER_02 %>%
+  filter(!is.na(Timestamp))
+FERSER_05 <- FERSER_05 %>%
+  filter(!is.na(Timestamp))
+FERSER_06 <- FERSER_06 %>%
+  filter(!is.na(Timestamp))
+FERSER_09 <- FERSER_09 %>%
+  filter(!is.na(Timestamp))
+FERSER_10 <- FERSER_10 %>%
+  filter(!is.na(Timestamp))
+```
+
+## Separate FER and SER per Participant
+
+```{r}
+#FER
+FER01 <- FERSER_01[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+FER02 <- FERSER_02[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+FER05 <- FERSER_05[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+FER06 <- FERSER_06[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+FER09 <- FERSER_09[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+FER10 <- FERSER_10[, c("Timestamp", "Participant.ID", "Facial.Emotion", "Facial_PosNeg", "Facial.Confidence", "Facial.ConfBinary")]
+
+#SER
+SER01 <- FERSER_01[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+SER02 <- FERSER_02[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+SER05 <- FERSER_05[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+SER06 <- FERSER_06[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+SER09 <- FERSER_09[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+SER10 <- FERSER_10[, c("Timestamp", "Participant.ID", "Speech.Emotion", "Speech_PosNeg", "Speech.Confidence", "Speech.ConfBinary")]
+```
+
+## Emotions are negative (=1)
+
+### Facial Emotion Recognition
+
+```{r}
+FER01_Neg <- FER01[FER01$Facial_PosNeg == 1,]
+FER02_Neg <- FER02[FER02$Facial_PosNeg == 1,]
+FER05_Neg <- FER05[FER05$Facial_PosNeg == 1,]
+FER06_Neg <- FER06[FER06$Facial_PosNeg == 1,]
+FER09_Neg <- FER09[FER09$Facial_PosNeg == 1,]
+FER10_Neg <- FER10[FER10$Facial_PosNeg == 1,]
+```
+
+### Speech Emotion Recognition
+
+```{r}
+SER01_Neg <- SER01[SER01$Speech_PosNeg == 1,]
+SER02_Neg <- SER02[SER02$Speech_PosNeg == 1,]
+SER05_Neg <- SER05[SER05$Speech_PosNeg == 1,]
+SER06_Neg <- SER06[SER06$Speech_PosNeg == 1,]
+SER09_Neg <- SER09[SER09$Speech_PosNeg == 1,]
+SER10_Neg <- SER10[SER10$Speech_PosNeg == 1,]
+```
+
+### Facial and Speech Emotion Recognition
+
+```{r}
+FERSER_01_Neg <- FERSER_01 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+
+FERSER_02_Neg <- FERSER_02 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+
+FERSER_05_Neg <- FERSER_05 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+
+FERSER_06_Neg <- FERSER_06 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+
+FERSER_09_Neg <- FERSER_09 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+
+FERSER_10_Neg <- FERSER_10 %>%
+  filter(Facial_PosNeg == 1, Speech_PosNeg == 1)
+```
+
+## Emotions confidence is \>0
+
+### Facial Emotion Recognition
+
+```{r}
+FER01_CI <- FER01[FER01$Facial.Confidence != 0, ]
+FER02_CI <- FER02[FER02$Facial.Confidence != 0, ]
+FER05_CI <- FER05[FER05$Facial.Confidence != 0, ]
+FER06_CI <- FER06[FER06$Facial.Confidence != 0, ]
+FER09_CI <- FER09[FER09$Facial.Confidence != 0, ]
+FER10_CI <- FER10[FER10$Facial.Confidence != 0, ]
+```
+
+### Speech Emotion Recognition
+
+```{r}
+SER01_CI <- SER01[SER01$Speech.Confidence != 0,]
+SER02_CI <- SER02[SER02$Speech.Confidence != 0,]
+SER05_CI <- SER05[SER05$Speech.Confidence != 0,]
+SER06_CI <- SER06[SER06$Speech.Confidence != 0,]
+SER09_CI <- SER09[SER09$Speech.Confidence != 0,]
+SER10_CI <- SER10[SER10$Speech.Confidence != 0,]
+```
+
+### Facial and Speech Emotion Recognition
+
+```{r}
+FERSER_01_CI <- FERSER_01 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+
+FERSER_02_CI <- FERSER_02 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+
+FERSER_05_CI <- FERSER_05 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+
+FERSER_06_CI <- FERSER_06 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+
+FERSER_09_CI <- FERSER_09 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+
+FERSER_10_CI <- FERSER_10 %>%
+  filter(Facial.Confidence != 0, Speech.Confidence != 0)
+```
+
+## Emotion is negative (=1) AND confidence is \> 0
+
+### Facial Emotion Recognition
+
+```{r}
+FER01_Neg_CI <- FER01[FER01$Facial.ConfBinary == 1 & FER01$Facial_PosNeg == 1, ]
+FER02_Neg_CI <- FER02[FER02$Facial.ConfBinary == 1 & FER02$Facial_PosNeg == 1, ]
+FER05_Neg_CI <- FER05[FER05$Facial.ConfBinary == 1 & FER05$Facial_PosNeg == 1, ]
+FER06_Neg_CI <- FER06[FER06$Facial.ConfBinary == 1 & FER06$Facial_PosNeg == 1, ]
+FER09_Neg_CI <- FER09[FER09$Facial.ConfBinary == 1 & FER09$Facial_PosNeg == 1, ]
+FER10_Neg_CI <- FER10[FER10$Facial.ConfBinary == 1 & FER10$Facial_PosNeg == 1, ]
+```
+
+### Speech Emotion Recognition
+
+```{r}
+SER01_Neg_CI <- SER01[SER01$Speech.ConfBinary == 1 & SER01$Speech_PosNeg == 1, ]
+SER02_Neg_CI <- SER02[SER02$Speech.ConfBinary == 1 & SER02$Speech_PosNeg == 1, ]
+SER05_Neg_CI <- SER05[SER05$Speech.ConfBinary == 1 & SER05$Speech_PosNeg == 1, ]
+SER06_Neg_CI <- SER06[SER06$Speech.ConfBinary == 1 & SER06$Speech_PosNeg == 1, ]
+SER09_Neg_CI <- SER09[SER09$Speech.ConfBinary == 1 & SER09$Speech_PosNeg == 1, ]
+SER10_Neg_CI <- SER10[SER10$Speech.ConfBinary == 1 & SER10$Speech_PosNeg == 1, ]
+```
+
+### Facial and Emotion Recognition
+
+```{r}
+FERSER01_Neg_CI <- FERSER_01 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+
+FERSER02_Neg_CI <- FERSER_02 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+
+FERSER05_Neg_CI <- FERSER_05 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+
+FERSER06_Neg_CI <- FERSER_06 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+
+FERSER09_Neg_CI <- FERSER_09 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+
+FERSER10_Neg_CI <- FERSER_10 %>%
+  filter(Facial.ConfBinary == 1,
+         Facial_PosNeg == 1,
+         Speech.ConfBinary == 1,
+         Speech_PosNeg == 1)
+```
+
+## Create All Participant's Data sets
+
+```{r}
+# Create an all participant's data set
+All_FERSER <- bind_rows(
+  FERSER_01,
+  FERSER_02,
+  FERSER_05,
+  FERSER_06,
+  FERSER_09,
+  FERSER_10
+)
+
+write.csv(All_FERSER, "All_FERSER.csv", row.names = FALSE)
+```
+
+```{r}
+# Create an All_FER data set
+All_FER <- bind_rows(
+  FER01,
+  FER02,
+  FER05,
+  FER06,
+  FER09,
+  FER10
+)
+
+# Rename Participant.ID
+All_FER <- All_FER %>%
+  rename(ParticipantID = Participant.ID)
+
+# Add a variable next to ParticipantID named Measure = FER
+All_FER <- All_FER %>%
+  mutate(Measure = "FER") %>%
+  relocate(Measure, .after = ParticipantID)
+
+```
+
+```{r}
+# Create an All_SER data set
+All_SER <- bind_rows(
+  SER01,
+  SER02,
+  SER05,
+  SER06,
+  SER09,
+  SER10
+)
+
+# Rename Participant.ID
+All_SER <- All_SER %>%
+  rename(ParticipantID = Participant.ID)
+
+# Add a variable next to ParticipantID named Measure = FER
+All_SER <- All_SER %>%
+  mutate(Measure = "SER") %>%
+  relocate(Measure, .after = ParticipantID)
+```
+
+## Save the data sets
+
+```{r}
+write.csv(All_FER, "All_FER_PostFeedback.csv", row.names = FALSE)
+write.csv(All_SER, "All_SER_PostFeedback.csv", row.names = FALSE)
+```
+
+## Visualisation of data
+
+### Emotion Trends Over Time
+
+#### Participant 01- Facial
+
+```{r}
+# Assuming Timestamp is POSIXct
+start_time <- min(FERSER_01$Timestamp)
+
+emotion_long <- FERSER_01 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"),
+         TimeSec = as.numeric(difftime(Timestamp, start_time, units = "secs")),
+         TimeBin = floor(TimeSec / 60) * 60)  # 60 = 1-min bins, change as needed
+
+# Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Filter for Facial modality
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot with zoom window
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "P1 Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal()
+
+```
+
+The y-axis refers to the number of times a specific emotion (e.g., happy, sad, angry) was detected within each time bin (right now the time bin is for every minute). For example, neutral at x = 1240, y = 30 would be:
+
+-   **x = 1240**: The time bin centered around **1240 seconds** from the start (i.e., about 20 minutes and 40 seconds after time zero).
+
+<!-- -->
+
+-   **y = 30**: There were **30 instances** of the emotion labeled **"neutral"** detected during that time bin.
+
+So at around 1240 seconds, the system detected **"neutral"** 30 times --- this could mean:
+
+-   The emotion "neutral" was very common during that period.
+
+-   There may have been multiple samples per second (especially if sampled at 10Hz, that's up to 10 readings/second).
+
+#### Participant 01- Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() 
+
+```
+
+```{r}
+# Assuming Timestamp is POSIXct
+FERSER01_Graph <- dplyr::full_join(
+  FER01 %>% select(Timestamp, Facial.Emotion, Facial.ConfBinary),
+  SER01 %>% select(Timestamp, Speech.Emotion, Speech.ConfBinary),
+  by = c("Timestamp")
+)
+
+start_time <- min(FERSER01_Graph$Timestamp)
+
+# Filter to keep only rows where confidence = 1 for each modality & emotion is not NA
+filtered_data <- FERSER01_Graph %>%
+  filter(
+    (Facial.ConfBinary == 1 & !is.na(Facial.Emotion)) |
+    (Speech.ConfBinary == 1 & !is.na(Speech.Emotion))
+  )
+
+# Reshape to long format for plotting
+emotion_long <- filtered_data %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(
+    Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"),
+    TimeSec = as.numeric(difftime(Timestamp, min(Timestamp), units = "secs")),
+    TimeBin = floor(TimeSec / 60) * 60
+  )
+
+# Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Plot both modalities faceted side-by-side
+ggplot(emotion_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "P1 Facial and Speech Emotion Trends Over Time (Confidence level > 0)",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() +
+  facet_wrap(~Modality, nrow = 1)  # 1 row, modalities side by side
+```
+
+#### Participant 02- Facial
+
+```{r}
+# 1. Reshape to long format (Facial and Speech together)
+emotion_long <- FERSER_02 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"))
+
+# 2. Create time bins (adjust bin size here: 10 = 10 sec, 60 = 1 min)
+emotion_long <- emotion_long %>%
+  mutate(TimeBin = floor(Timestamp / 60) * 60)  # change to 60 for 1-min bins
+
+# 3. Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# 4. Plot with zoom window (zooming in to early seconds)
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 02- Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 05- Facial
+
+```{r}
+# 1. Reshape to long format (Facial and Speech together)
+emotion_long <- FERSER_05 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"))
+
+# 2. Create time bins (adjust bin size here: 10 = 10 sec, 60 = 1 min)
+emotion_long <- emotion_long %>%
+  mutate(TimeBin = floor(Timestamp / 60) * 60)  # change to 60 for 1-min bins
+
+# 3. Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# 4. Plot with zoom window (zooming in to early seconds)
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 05- Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 06- Facial
+
+```{r}
+# 1. Reshape to long format (Facial and Speech together)
+emotion_long <- FERSER_06 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"))
+
+# 2. Create time bins (adjust bin size here: 10 = 10 sec, 60 = 1 min)
+emotion_long <- emotion_long %>%
+  mutate(TimeBin = floor(Timestamp / 60) * 60)  # change to 60 for 1-min bins
+
+# 3. Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# 4. Plot with zoom window (zooming in to early seconds)
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 06-Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 09-Facial
+
+```{r}
+# 1. Reshape to long format (Facial and Speech together)
+emotion_long <- FERSER_09 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"))
+
+# 2. Create time bins (adjust bin size here: 10 = 10 sec, 60 = 1 min)
+emotion_long <- emotion_long %>%
+  mutate(TimeBin = floor(Timestamp / 60) * 60)  # change to 60 for 1-min bins
+
+# 3. Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# 4. Plot with zoom window (zooming in to early seconds)
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 09- Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 10-Facial
+
+```{r}
+# 1. Reshape to long format (Facial and Speech together)
+emotion_long <- FERSER_10 %>%
+  select(Timestamp, Facial.Emotion, Speech.Emotion) %>%
+  pivot_longer(cols = c(Facial.Emotion, Speech.Emotion),
+               names_to = "Modality", values_to = "Emotion") %>%
+  mutate(Modality = ifelse(Modality == "Facial.Emotion", "Facial", "Speech"))
+
+# 2. Create time bins (adjust bin size here: 10 = 10 sec, 60 = 1 min)
+emotion_long <- emotion_long %>%
+  mutate(TimeBin = floor(Timestamp / 60) * 60)  # change to 60 for 1-min bins
+
+# 3. Count occurrences per bin
+emotion_trend <- emotion_long %>%
+  group_by(TimeBin, Emotion, Modality) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# 4. Plot with zoom window (zooming in to early seconds)
+facial_trend <- emotion_trend %>% filter(Modality == "Facial")
+
+# Plot
+ggplot(facial_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Facial Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+#### Participant 10-Speech
+
+```{r}
+# Filter for Speech modality
+speech_trend <- emotion_trend %>% filter(Modality == "Speech")
+
+# Plot
+ggplot(speech_trend, aes(x = TimeBin, y = Count, color = Emotion)) +
+  geom_point(alpha = 0.8) +
+  labs(title = "Speech Emotion Trends Over Time",
+       x = "Time (seconds)",
+       y = "Emotion Count") +
+  theme_minimal() + coord_cartesian(xlim = c(0, 200))  # Adjust zoom range as needed
+```
+
+### Emotion Category Distribution
+
+```{r}
+ggplot(FERSER_01, aes(x = Facial.Emotion)) +
+  geom_bar(fill = "skyblue") +
+  theme_minimal() +
+  labs(title = "Distribution of Facial Emotions")
+
+#Try pie chart too
+```
+
+### Emotion Polarity Comparison
+
+```{r}
+Facial_count <- FERSER_01 %>%
+  dplyr::count(Modality = "Facial", Polarity = Facial_PosNeg)
+
+Speech_count <- FERSER_01 %>%
+  dplyr::count(Modality = "Speech", Polarity = Speech_PosNeg)
+
+# Combine and plot
+bind_rows(Facial_count, Speech_count) %>%
+  ggplot(aes(x = Modality, y = n, fill = factor(Polarity))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Positive vs. Negative Emotions by Modality",
+       fill = "Polarity") +
+  theme_minimal()
+
+```
+
+### Confidence Score Trends
+
+```{r}
+# Ensure Timestamp is in numeric format
+FERSER_01$Timestamp <- as.POSIXct(FERSER_01$Timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+
+# Pivot to long format
+conf_long <- FERSER_01 %>%
+  select(Timestamp, Facial.Confidence, Speech.Confidence) %>%
+  pivot_longer(cols = c(Facial.Confidence, Speech.Confidence),
+               names_to = "Modality",
+               values_to = "Confidence")
+
+# Plot
+ggplot(conf_long, aes(x = Timestamp, y = Confidence, color = Modality, group = Modality)) +
+  geom_line() +
+  labs(title = "Confidence Score Over Time",
+       y = "Confidence",
+       color = "Modality") +
+  theme_minimal()
+```
+
+### Agreement between Modalities
+
+```{r}
+CrossTable(data$Facial_PosNeg, data$Speech_PosNeg,
+           prop.chisq = FALSE, prop.t = FALSE,
+           dnn = c("Facial", "Speech"))
+```
+
+## Save the data sets + document as a .docx
+
+```{r}
+# Save each dataset to a CSV file
+setwd("C:\Users\s2650398\Desktop\FERSER")
+write.csv(FERSER_01, "FERSER_01.csv", row.names = FALSE)
+write.csv(FERSER_02, "FERSER_02.csv", row.names = FALSE)
+#write.csv(FERSER_04, "FERSER_04.csv", row.names = FALSE)
+write.csv(FERSER_05, "FERSER_05.csv", row.names = FALSE)
+write.csv(FERSER_06, "FERSER_06.csv", row.names = FALSE)
+write.csv(FERSER_09, "FERSER_09.csv", row.names = FALSE)
+write.csv(FERSER_10, "FERSER_10.csv", row.names = FALSE)
+
+
+```
+
+```{r}
+write.csv(FER01_Neg_CI, "FER01_Neg_CI.csv", row.names = FALSE)
+write.csv(FER02_Neg_CI, "FER02_Neg_CI.csv", row.names = FALSE)
+#write.csv(FER04_Neg_CI, "FER04_Neg_CI.csv", row.names = FALSE)
+write.csv(FER05_Neg_CI, "FER05_Neg_CI.csv", row.names = FALSE)
+write.csv(FER06_Neg_CI, "FER06_Neg_CI.csv", row.names = FALSE)
+write.csv(FER09_Neg_CI, "FER09_Neg_CI.csv", row.names = FALSE)
+write.csv(FER10_Neg_CI, "FER10_Neg_CI.csv", row.names = FALSE)
+
+write.csv(SER01_Neg_CI, "SER01_Neg_CI.csv", row.names = FALSE)
+write.csv(SER02_Neg_CI, "SER02_Neg_CI.csv", row.names = FALSE)
+#write.csv(SER04_Neg_CI, "SER04_Neg_CI.csv", row.names = FALSE)
+write.csv(SER05_Neg_CI, "SER05_Neg_CI.csv", row.names = FALSE)
+write.csv(SER06_Neg_CI, "SER06_Neg_CI.csv", row.names = FALSE)
+write.csv(SER09_Neg_CI, "SER09_Neg_CI.csv", row.names = FALSE)
+write.csv(SER10_Neg_CI, "SER10_Neg_CI.csv", row.names = FALSE)
+```
+
+```{r}
+rmarkdown::render("FERSER_analysis.qmd", output_format = "word_document")
+```

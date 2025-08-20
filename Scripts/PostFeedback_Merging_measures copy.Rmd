@@ -1,0 +1,2596 @@
+---
+title: "FINAL_Merging_measures"
+author: "Paola Flores"
+date: "2025-07-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install Packages
+
+```{r}
+# Install packages
+install.packages("tidyverse", dependencies = TRUE)
+install.packages("data.table")
+install.packages("dplyr")
+install.packages("signal")
+install.packages("plotly")
+install.packages("pracma")
+install.packages("ggpubr")
+install.packages("zoo")
+install.packages("webshot")
+install.packages("ggplot2")
+install.packages("lubridate")
+install.packages("tidyr")
+install.packages("purrr")
+install.packages("irr")
+install.packages("psych")
+install.packages("corrplot")
+install.packages("pROC")
+install.packages("tibble")
+install.packages("pheatmap")
+install.packages("glue")
+install.packages("forcats")
+install.packages("patchwork")
+install.packages("viridis")
+install.packages("stringr")
+
+# Download libraries
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(signal)
+library(plotly)
+library(pracma)
+library(ggpubr)
+library(zoo)
+library(webshot)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(purrr)
+library(irr)
+library(psych)
+library(corrplot)
+library(pROC)
+library(tibble)
+library(pheatmap)
+library(glue)
+library(forcats)
+library(patchwork)
+library(viridis)
+library(dplyr)
+library(stringr)
+```
+
+## Load Data Sets
+
+```{r}
+setwd("~/Desktop/R_docs")
+
+All_ECG <- fread("All_ECG_PostFeedback.csv")
+All_EDA <- fread("All_EDA_PostFeedback.csv")
+All_FER <- fread("All_FER_PostFeedback.csv")
+All_SER <- fread("All_SER_PostFeedback.csv")
+predefined_stress_events <- fread("~/Desktop/R_docs/predefined_stress_events.csv")
+```
+
+# Clean and Structure the Data Sets
+
+## Last minute changes
+
+### All_EDA
+
+```{r}
+# Remove uneccessary variables
+All_EDA <- All_EDA %>%
+  select(-Measure)
+```
+
+## Combine All_ECG, All_EDA, All_FER, All_SER
+
+This code synchronises and merges physiological (ECG, EDA) and behavioral (FER, SER) data by rounding all timestamps down to the nearest second (`Timestamp_rounded`) to enable second-level alignment. It then performs left joins on `ParticipantID` and `Timestamp_rounded` to combine the data streams into a single dataframe (`All_measures`). Finally, it cleans and renames columns for easier interpretation and downstream analysis.
+
+```{r}
+# Step 1: Create second-level timestamp for ECG/EDA to match FER/SER
+# Create new Timestamp_rounded variable
+All_EDA <- All_EDA %>%
+  mutate(Timestamp_rounded = floor(Timestamp)) %>%
+  relocate(Timestamp_rounded, .after = Timestamp)
+
+#All_EDA <- All_EDA %>%
+#  rename(Value_EDA = Value,
+#         IsPeak_EDA = IsPeak)
+
+All_ECG <- All_ECG %>%
+  mutate(Timestamp_rounded = floor(Timestamp)) %>%
+  relocate(Timestamp_rounded, .after = Timestamp)
+
+#All_ECG <- All_ECG %>%
+ # rename(Value_ECG = Value,
+ #        IsPeak_ECG = IsPeak,
+ #        FilteredValue_ECG = FilteredValue)
+
+#All_ECG <- All_ECG %>%
+#  select(-Measure)
+
+# Step 2: Merge ECG and EDA by Timestamp_rounded and Participant
+merged_physiological <- All_ECG %>%
+  left_join(All_EDA, by = c("ParticipantID", "Timestamp"), suffix = c("_ECG", "_EDA"))
+
+# Step 2: Merge FER and FER by Timestamp_rounded and Participant
+All_FER <- All_FER %>%
+  mutate(Timestamp_rounded = floor(Timestamp)) %>%
+  relocate(Timestamp_rounded, .after = Timestamp)
+
+All_SER <- All_SER %>%
+  mutate(Timestamp_rounded = floor(Timestamp)) %>%
+  relocate(Timestamp_rounded, .after = Timestamp)
+
+merged_behavioural <- All_FER %>%
+  left_join(All_SER, by = c("ParticipantID", "Timestamp"), suffix = c("_FER", "_SER"))
+
+# Step 3: Join FER and SER labels based on Timestamp_rounded
+# Add Timestamp_rounded to merged_physiological
+merged_physiological <- merged_physiological %>%
+  rename(Timestamp_rounded = Timestamp_rounded_ECG)
+
+merged_behavioural <- merged_behavioural %>%
+  rename(Timestamp_rounded = Timestamp_rounded_FER)
+
+# Then perform the join
+All_measures <- merged_physiological %>%
+  left_join(merged_behavioural, by = c("ParticipantID", "Timestamp_rounded"))
+
+All_measures <- All_measures %>%
+  rename(Timestamp = Timestamp.x,
+         OG_Timestamp = OG_Timestamp_ECG,
+         Index = Index_ECG)
+
+# Delete unneeded variables
+All_measures <- All_measures %>%
+  select(-Index_EDA, -Timestamp_rounded_EDA, -OG_Timestamp_EDA, -Timestamp.y, -Measure_FER, -Timestamp_rounded_SER, -Measure_SER)
+
+# Rename for easier interpretation
+All_measures <- All_measures %>%
+  rename(YLab_Timestamp = OG_Timestamp)
+```
+
+## Create binary variables out of the predefined_stress_events
+
+This code takes each predefined stress event and breaks it down into one row per second for the duration of that event. This makes it easier to align stress periods with other time-based data like physiological or behavioral signals. It also labels whether each second falls within a stress period or a non-stress period (like baseline).
+
+```{r}
+# Expand predefined_stress_events into 1 row per second
+predefined_events_interview_seconds <- predefined_stress_events %>%
+  # Ensure times are rounded and finite
+  mutate(
+    Stress_Start = ceiling(Stress_Start),
+    Stress_End = floor(Stress_End)
+  ) %>%
+  # Remove rows with NA or non-finite values
+  filter(is.finite(Stress_Start), is.finite(Stress_End)) %>%
+  # Generate 1-second timestamps
+  rowwise() %>%
+  mutate(Timestamp_rounded = list(seq(Stress_Start, Stress_End, by = 1))) %>%
+  unnest(Timestamp_rounded) 
+  #mutate(Predefined_period = if_else(Event_Group %in% c("Baseline", "Goodbye"), 0, 1)) %>%
+  #relocate(Predefined_period, .after = Event_Name) %>%
+  #ungroup()
+
+predefined_stress_events %>%
+  mutate(
+    Stress_Start = ceiling(Stress_Start),
+    Stress_End = floor(Stress_End)
+  ) %>%
+  filter(Stress_End < Stress_Start)
+
+# Bring Timestamp_rounded to the first column
+predefined_events_interview_seconds <- predefined_events_interview_seconds %>%
+  select(Timestamp_rounded, everything())
+```
+
+### Create a second-level data set for predefined_periods ONLY
+
+```{r}
+predefined_POI_seconds <- predefined_events_interview_seconds %>%
+  select(Timestamp_rounded, ParticipantID, Event_Group, Event_Name, Stress_Start, Stress_End)
+```
+
+### Create a second-level data set subjective experience ONLY
+
+```{r}
+subjective_experience_seconds <- predefined_events_interview_seconds %>%
+  select(Timestamp_rounded, ParticipantID, Event_Group, Event_Name, Interview_Binary, Interview_PosNeg, Rating_L_M)
+```
+
+## Create a data set with the data group_by second
+
+```{r}
+# Identify binary columns
+binary_variables <- c("HR_binary", "RR_ma_flag", "RR_baseline_flag", "IsPeak_EDA", "SCR_ma_binary", "SCL_ma_binary", "SCR_onset", "SCL_sustained", "SCR_baseline_stress_binary", "SCL_baseline_sustained", "FFT_binary", "Facial_PosNeg", "Facial.ConfBinary", "Speech_PosNeg", "Speech.ConfBinary")
+
+# Apply numeric conversion 
+All_measures <- as.data.frame(All_measures)
+All_measures[binary_variables] <- lapply(All_measures[binary_variables], function(x) as.numeric(as.character(x)))
+
+# Summarise per second per participant
+by_second_all_binary <- All_measures %>%
+  group_by(ParticipantID, Timestamp_rounded, ) %>%
+  summarise(across(all_of(binary_variables), ~ ifelse(sum(.x, na.rm = TRUE) > 0, 1, 0)), .groups = "drop")
+```
+
+## Merge predefined_stress_seconds with by_second_all_binary AND with All_measures
+
+```{r}
+# Step 1: Merge datasets
+by_second_all_binary <- by_second_all_binary %>%
+  left_join(predefined_events_interview_seconds, by = c("ParticipantID", "Timestamp_rounded"))
+
+All_measures <- All_measures %>%
+  left_join(predefined_events_interview_seconds, by = c("ParticipantID", "Timestamp_rounded"))
+
+# Step 2: Delete unecessary columns
+by_second_all_binary <- by_second_all_binary %>%
+  select(-Stress_Start, -Stress_End)
+
+All_measures <- All_measures %>%
+  select(-Stress_Start, -Stress_End)
+
+# Step 3: Reorder columns
+by_second_all_binary <- by_second_all_binary %>%
+  relocate(Event_Group, .after = Timestamp_rounded) %>%
+  relocate(Event_Name, .after = Timestamp_rounded) %>%
+  relocate(Rating_L_M, .after = Event_Group) %>%
+  relocate(Predefined_period, .after = Event_Name) %>%
+  relocate(Event_Group, .after = Timestamp_rounded) %>%
+  relocate(Interview_Binary, .after = Predefined_period)
+
+by_second_all_binary <- by_second_all_binary %>%
+  rename(SCR_ma_onset = SCR_onset,
+         SCL_ma_sustained = SCL_sustained)
+
+All_measures <- All_measures %>%
+  relocate(ParticipantID, .after = Index) %>%
+  relocate(Timestamp_rounded) %>%
+  relocate(Event_Group, .after = Timestamp_rounded) %>%
+  relocate(Event_Name, .after = Event_Group) %>%
+  relocate(Predefined_period, .after = Event_Name) %>%
+  relocate(Rating_L_M, .after = Predefined_period)%>%
+  relocate(Index, .before = Timestamp_rounded) 
+```
+
+# Binary Dataset Preparation
+
+## Filter FER and SER predictions by confidence
+
+```{r}
+# Create a variable that keeps the Facial/Speech_PosNeg only if Facial/Speech.ConfBinary is 1
+by_second_all_binary <- by_second_all_binary %>%
+  mutate(Facial_PosNeg_Conf = ifelse(Facial.ConfBinary == 1, Facial_PosNeg, NA),
+         Speech_PosNeg_Conf = ifelse(Speech.ConfBinary == 1, Speech_PosNeg, NA))
+
+# Reorganise the variables
+by_second_all_binary <- by_second_all_binary %>%
+  relocate(Facial_PosNeg_Conf, .after = Facial.ConfBinary) %>%
+  relocate(Speech_PosNeg_Conf, .after = Speech.ConfBinary)
+
+# Remove Facial/Speech_PosNeg and Facial/Speech.ConfBinary
+by_second_all_binary <- by_second_all_binary %>%
+  select(-Facial_PosNeg, -Facial.ConfBinary, -Speech_PosNeg, -Speech.ConfBinary)
+```
+
+# Add 20-Second Convergence Time Window
+
+## Counts
+
+This code analyzes binary stress detection signals from four modalities—ECG, EDA, facial expression (FER), and speech (SER)—within 20-second windows. For each window, it counts how many detectors in each modality indicate stress and then assigns a modality-specific flag if that count passes a theoretically grounded threshold (e.g., at least 2 ECG detectors or 4 EDA detectors active). This allows identification of when each modality shows sufficient evidence of stress, supporting a multimodal and more reliable interpretation.
+
+FFT was excluded because of preliminary tests on the EDA-only data. Refer to the EDA R-script)
+
+Compare the convergence detection against your ground truth:
+
+```{r}
+# Define modality-specific binary variable groups
+groundtruth_vars <- c("Predefined_period", "Interview_Binary")
+ecg_vars <- c("HR_binary", "RR_ma_flag", "RR_baseline_flag")
+eda_vars <- c("IsPeak_EDA", "SCR_ma_binary", "SCR_ma_onset", "SCL_ma_binary", 
+              "SCL_ma_sustained", "SCR_baseline_stress_binary", "SCL_baseline_sustained", "FFT_binary")
+fer_vars <- c("Facial_PosNeg_Conf")
+ser_vars <- c("Speech_PosNeg_Conf")
+
+binary_cols <- c(ecg_vars, eda_vars, fer_vars, ser_vars)
+
+# Thresholds for each variable (used for window summarization)
+variable_thresholds <- c(
+  Predefined_period = 5,
+  Interview_Binary = 5,
+
+  HR_binary = 3,
+  RR_ma_flag = 25,
+  RR_baseline_flag = 20,
+
+  IsPeak_EDA = 2,            
+  SCR_ma_binary = 3,         
+  SCR_ma_onset = 3,
+  SCL_ma_binary = 2,
+  SCL_ma_sustained = 2,
+  SCR_baseline_stress_binary = 2,
+  SCL_baseline_sustained = 2,
+  FFT_binary = 3,
+
+  Facial_PosNeg_Conf = 4,
+  Speech_PosNeg_Conf = 2
+)
+
+
+# Summarise per 20-second window
+per_20sec_all_binary <- by_second_all_binary %>%
+  mutate(Window_ID = floor(Timestamp_rounded / 20)) %>%
+  group_by(ParticipantID, Window_ID) %>%
+  summarise(
+    Start_Time = min(Timestamp_rounded),
+    End_Time = max(Timestamp_rounded),
+    Event_Name = first(Event_Name),
+    Event_Group = first(Event_Group),
+
+    # Threshold and overwrite all binary columns
+    across(any_of(c(binary_cols, groundtruth_vars)),
+           .fns = function(x, col_name = cur_column()) {
+             as.integer(sum(x, na.rm = TRUE) >= variable_thresholds[[col_name]])
+           }),
+    .groups = "drop"
+  ) %>%
+  rowwise() %>%
+  mutate(
+    Total_ECG_Detectors = sum(c_across(all_of(ecg_vars)), na.rm = TRUE),
+    Total_EDA_Detectors = sum(c_across(all_of(eda_vars)), na.rm = TRUE),
+    Total_FER_Detectors = sum(c_across(all_of(fer_vars)), na.rm = TRUE),
+    Total_SER_Detectors = sum(c_across(all_of(ser_vars)), na.rm = TRUE),
+
+    ECG_Active_20secs_Flag = as.integer(Total_ECG_Detectors >= 2),
+    EDA_Active_20secs_Flag = as.integer(Total_EDA_Detectors >= 3),
+    FER_Active_20secs_Flag = as.integer(Total_FER_Detectors >= 1),
+    SER_Active_20secs_Flag = as.integer(Total_SER_Detectors >= 1),
+
+    Converging_Active_20sec_Flag = as.integer(
+      sum(c_across(c("ECG_Active_20secs_Flag",
+                     "EDA_Active_20secs_Flag",
+                     "FER_Active_20secs_Flag",
+                     "SER_Active_20secs_Flag"))) >= 3
+    )
+  ) %>%
+    ungroup()
+```
+
+```{r}
+# Percentage of stress (1) vs no-stress (0) flags per participant
+converging_flag_percentages <- per_20sec_all_binary %>%
+  group_by(ParticipantID, Converging_Active_20sec_Flag) %>%
+  summarise(Count = n(), .groups = "drop_last") %>%
+  mutate(
+    Total = sum(Count),
+    Percentage = round((Count / Total) * 100, 2)
+  ) %>%
+  ungroup()
+
+# View result
+print(converging_flag_percentages)
+
+```
+
+### Summary of percentages
+
+```{r}
+detector_vars <- c("Total_ECG_Detectors", "Total_EDA_Detectors", "Total_FER_Detectors", "Total_SER_Detectors")
+
+percent_per_participant <- per_20sec_all_binary %>%
+  group_by(ParticipantID) %>%
+  summarise(across(all_of(detector_vars),
+                   ~ mean(.x > 0, na.rm = TRUE) * 100,
+                   .names = "Percent_{.col}_Active")) %>%
+  ungroup() %>%
+  mutate(ParticipantID = as.character(ParticipantID), Type = "Per Participant")
+
+percent_overall <- per_20sec_all_binary %>%
+  summarise(across(all_of(detector_vars),
+                   ~ mean(.x > 0, na.rm = TRUE) * 100,
+                   .names = "Percent_{.col}_Active")) %>%
+  mutate(ParticipantID = "Overall", Type = "Overall")
+
+percent_combined <- bind_rows(percent_per_participant, percent_overall) %>%
+  select(ParticipantID, Type, everything())
+
+print(percent_combined)
+```
+
+### Visualisations
+
+```{r}
+#Plot 1: How many detectors are active per window, distribution overview.
+
+# Gather modality counts into long format for easier plotting
+per_20sec_long <- per_20sec_all_binary %>%
+  select(ParticipantID, Window_ID, Start_Time, End_Time,
+         Total_ECG_Detectors, Total_EDA_Detectors, Total_FER_Detectors, Total_SER_Detectors) %>%
+  pivot_longer(cols = starts_with("Total_"), 
+               names_to = "Modality", values_to = "Active_Detectors") %>%
+  mutate(Modality = gsub("Total_|_Detectors", "", Modality))
+
+# 1. Histogram of Active Detectors per modality and participant
+ggplot(per_20sec_long, aes(x = Active_Detectors)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_grid(ParticipantID ~ Modality, scales = "free_y") +
+  labs(title = "Distribution of Active Stress Detectors per 20s Window",
+       x = "Number of Active Detectors",
+       y = "Count of Windows") +
+  theme_minimal()
+
+```
+
+```{r}
+#Plot 2: Counts of windows classified as stress events vs not.
+
+# Gather flags into long format
+flags_long <- per_20sec_all_binary %>%
+  select(ParticipantID, Window_ID,
+         ECG_Active_20secs_Flag, EDA_Active_20secs_Flag, 
+         FER_Active_20secs_Flag, SER_Active_20secs_Flag) %>%
+  pivot_longer(cols = ends_with("_Flag"), 
+               names_to = "Modality", values_to = "Active_Flag") %>%
+  mutate(Modality = gsub("_Active_20secs_Flag", "", Modality))
+
+# Plot counts of flagged windows by modality and participant
+ggplot(flags_long, aes(x = factor(Active_Flag), fill = factor(Active_Flag))) +
+  geom_bar() +
+  facet_grid(ParticipantID ~ Modality) +
+  scale_fill_manual(values = c("0" = "gray", "1" = "tomato"), guide = FALSE) +
+  labs(title = "Count of Windows by Stress Event Flag (by Participant & Modality)",
+       x = "Stress Event Flag (0 = No, 1 = Yes)",
+       y = "Number of Windows") +
+  theme_minimal()
+```
+
+# Inferential Analyses
+
+## Participant-based
+
+### Cohen's Kappa
+
+-   Interpretation
+
+    -   \<0.20 = Slight agreement
+
+    -   0.21-0.40 = Fair agreement
+
+    -   0.41-0.60 = Moderate agreement
+
+    -   0.61-0.80 = Substantial agreement
+
+    -   0.81-1.00 = Almost perfect agreement
+
+```{r}
+# Add predefined period to the complete dataset
+binary_flag_cols <- c("Predefined_period", "Interview_Binary", "ECG_Active_20secs_Flag", "EDA_Active_20secs_Flag",
+  "FER_Active_20secs_Flag", "SER_Active_20secs_Flag"
+)
+
+# Function to get varying columns for one participant
+get_varying_cols <- function(df) {
+  binary_flag_cols[sapply(df[binary_flag_cols], function(x) {
+    x <- na.omit(x)
+    length(unique(x)) > 1
+  })]
+}
+
+# Loop over Participants
+# Store results
+# Initialize storage lists
+kappa_results_list <- list()
+excluded_cols_list <- list()
+
+# Get list of participant IDs
+participant_ids <- unique(per_20sec_all_binary$ParticipantID)
+
+for (pid in participant_ids) {
+  
+  cat("Processing participant", pid, "...\n")
+  
+  # Subset participant data
+  df_part <- per_20sec_all_binary %>% filter(ParticipantID == pid)
+  
+  # Get only varying columns (those with both 0s and 1s)
+  valid_cols <- get_varying_cols(df_part)
+  
+  # Identify excluded (non-varying) columns
+  excluded_cols <- setdiff(binary_flag_cols, valid_cols)
+  excluded_cols_list[[as.character(pid)]] <- excluded_cols
+  
+  # Skip if < 2 valid columns (can’t compute pairwise kappas)
+  if (length(valid_cols) < 2) {
+    cat("Skipping participant", pid, "- not enough variable columns.\n")
+    next
+  }
+  
+  # Compute pairwise Cohen's Kappa for each variable pair
+  combs <- combn(valid_cols, 2, simplify = FALSE)
+  kappas <- lapply(combs, function(pair) {
+    dat <- df_part[, pair]
+    dat <- na.omit(dat)
+    if (nrow(dat) == 0) return(NULL)
+    
+    kappa <- tryCatch({
+      irr::kappa2(dat)$value
+    }, error = function(e) {
+      NA
+    })
+    
+    tibble(
+      ParticipantID = pid,
+      Var1 = pair[1],
+      Var2 = pair[2],
+      Cohen_Kappa = kappa
+    )
+  })
+  
+  # Save results
+  kappa_results_list[[as.character(pid)]] <- bind_rows(kappas)
+}
+
+# Combine all results
+cohens_20sec_kappa <- bind_rows(kappa_results_list)
+cohens_20sec_kappa
+```
+
+#### Variables omitted per participant due to no variance
+
+```{r}
+# Show all excluded columns per participant
+excluded_cols_df <- tibble(
+  ParticipantID = names(excluded_cols_list),
+  Excluded_Columns = sapply(excluded_cols_list, paste, collapse = ", ")
+)
+
+print(excluded_cols_df)
+```
+
+#### Quick Overview by Participant
+
+```{r}
+cohens_20sec_summary <- cohens_20sec_kappa %>%
+  group_by(ParticipantID) %>%
+  summarise(
+    Avg_Kappa = mean(Cohen_Kappa, na.rm = TRUE),
+    Num_Pairs = n()
+  )
+
+cohens_20sec_summary
+```
+
+### Calculate Cohen's Kappa (Pooled) AND Agreement
+
+```{r}
+# Function to calculate kappa and agreement
+get_pairwise_agreement <- function(var1, var2, data) {
+  df <- data[, c(var1, var2)] %>% na.omit()
+  agree <- mean(df[[var1]] == df[[var2]])
+  kappa_val <- kappa2(df, "unweighted")$value
+  tibble(Var1 = var1, Var2 = var2, Percent_Agree = round(agree * 100, 1), Cohen_Kappa = round(kappa_val, 3))
+}
+
+# Generate pairwise comparisons
+pairwise_results <- bind_rows(
+  combn(binary_flag_cols, 2, function(x) get_pairwise_agreement(x[1], x[2], per_20sec_all_binary), simplify = FALSE)
+)
+
+# Now, aggregate by comparison name to treat A vs B and B vs A as the same
+avg_agreement_table <- pairwise_results %>%
+  mutate(Comparison = ifelse(Var1 < Var2,
+                             paste(Var1, "vs", Var2),
+                             paste(Var2, "vs", Var1))) %>%
+  group_by(Comparison) %>%
+  summarise(Cohen_Kappa = round(mean(Cohen_Kappa, na.rm = TRUE), 3),
+            Percent_Agreement = round(mean(Percent_Agree, na.rm = TRUE), 1),
+            .groups = "drop") %>%
+  arrange(desc(Cohen_Kappa), desc(Percent_Agreement)) 
+
+# View results
+print(avg_agreement_table)
+
+top10_agreement <- avg_agreement_table %>%
+  slice_max(order_by = Cohen_Kappa, n = 10)
+top10_agreement
+```
+
+### Visualisation of Predefined Period, Interview Binary, and Converging Active 20 sec Detectors
+
+```{r}
+# Variables to plot
+plot_vars <- c(
+  "Predefined_period", "Interview_Binary", "Converging_Active_20sec_Flag",
+  "ECG_Active_20secs_Flag", "EDA_Active_20secs_Flag",
+  "FER_Active_20secs_Flag", "SER_Active_20secs_Flag"
+)
+
+# Prepare long-format plot data with Event_Group included
+plot_data <- per_20sec_all_binary %>%
+  select(ParticipantID, Start_Time, Event_Group, all_of(plot_vars)) %>%
+  pivot_longer(cols = all_of(plot_vars), names_to = "Variable", values_to = "Value") %>%
+  mutate(
+    Value = factor(Value, levels = c(0, 1)),
+    Variable = factor(Variable, levels = plot_vars)
+  )
+
+# Plot
+ggplot(plot_data, aes(x = Start_Time, y = Variable, fill = Value)) +
+  geom_tile(color = "black", height = 0.9) +
+  facet_wrap(~ ParticipantID, scales = "free_x", ncol = 1) +
+  scale_fill_manual(values = c("0" = "grey", "1" = "red")) +
+  # Optional: overlay Event_Group as vertical shading or segment
+  geom_rect(
+    data = plot_data %>%
+      group_by(ParticipantID, Event_Group, Start_Time) %>%
+      summarise(End_Time = max(Start_Time + 20), .groups = "drop"),
+    aes(xmin = Start_Time, xmax = End_Time, ymin = -Inf, ymax = Inf, fill = Event_Group),
+    inherit.aes = FALSE,
+    alpha = 0.1
+  ) +
+  labs(
+    title = "Stress Flags by Participant and Event Group",
+    x = "Time (seconds)",
+    y = "Binary Variable",
+    fill = "Flag"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    panel.grid = element_blank()
+  )
+
+```
+
+#### Best and Worst Cohen's Kappas
+
+```{r}
+top_kappas <- cohens_20sec_kappa %>%
+  filter(!is.na(Cohen_Kappa)) %>%  
+  group_by(ParticipantID) %>%
+  arrange(desc(Cohen_Kappa)) %>%   
+  summarise(
+    Top_5_Best = list(head(tibble(Var1, Var2, Cohen_Kappa), 5)),
+    Top_5_Worst = list(
+      head(tibble(Var1, Var2, Cohen_Kappa) %>% arrange(Cohen_Kappa), 5)
+    )
+  )
+
+nrow(top_kappas)
+
+
+# Top Results
+# Participant 1
+top_kappas %>% filter(ParticipantID == 1) %>% pull(Top_5_Best)
+
+# Participant 2
+top_kappas %>% filter(ParticipantID == 2) %>% pull(Top_5_Best)
+
+# Participant 5
+top_kappas %>% filter(ParticipantID == 5) %>% pull(Top_5_Best)
+
+# Participant 6
+top_kappas %>% filter(ParticipantID == 6) %>% pull(Top_5_Best)
+
+# Participant 9
+top_kappas %>% filter(ParticipantID == 9) %>% pull(Top_5_Best)
+
+# Participant 10
+top_kappas %>% filter(ParticipantID == 10) %>% pull(Top_5_Best)
+```
+
+#### Visualisation: Violin Plot
+
+```{r}
+# Faceted violin plots of Cohen's Kappa per participant
+ggplot(cohens_20sec_kappa, aes(x = factor(1), y = Cohen_Kappa)) +
+  geom_violin(fill = "#74a9cf") +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  facet_wrap(~ ParticipantID, scales = "free_y") +
+  labs(
+    title = "Distribution of Pairwise Cohen’s Kappa per Participant",
+    x = "Participant",
+    y = "Cohen’s Kappa"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+```
+
+#### Visualisation: Heatmap
+
+```{r}
+# Create a consistent pair label (order-independent)
+cohens_20sec_kappa_pairs <- cohens_20sec_kappa %>%
+  mutate(
+    Pair = ifelse(Var1 < Var2,
+                  paste(Var1, Var2, sep = " vs "),
+                  paste(Var2, Var1, sep = " vs "))
+  )
+
+# Compute average kappa per variable pair
+kappa_heatmap_data <- cohens_20sec_kappa_pairs %>%
+  group_by(Pair) %>%
+  summarise(Avg_Kappa = mean(Cohen_Kappa, na.rm = TRUE), .groups = "drop") %>%
+  separate(Pair, into = c("Var1", "Var2"), sep = " vs ")
+
+# Plot heatmap
+ggplot(kappa_heatmap_data, aes(x = Var1, y = Var2, fill = Avg_Kappa)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(name = "Avg Kappa", option = "plasma", na.value = "grey90") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Heatmap of Average Cohen's Kappa per Variable Pair",
+    x = "Variable 1",
+    y = "Variable 2"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### Visualisation: Heatmap per Participant
+
+```{r}
+#FACETED PLOTS
+# Prepare symmetric pairs
+cohens_20sec_kappa_pairs <- cohens_20sec_kappa %>%
+  mutate(
+    Var1_fixed = pmin(Var1, Var2),
+    Var2_fixed = pmax(Var1, Var2)
+  ) %>%
+  select(ParticipantID, Var1 = Var1_fixed, Var2 = Var2_fixed, Cohen_Kappa) %>%
+  filter(!is.na(Cohen_Kappa))
+
+# Create a single faceted plot
+ggplot(cohens_20sec_kappa_pairs, aes(x = Var1, y = Var2, fill = Cohen_Kappa)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(name = "Kappa", option = "plasma", na.value = "grey90", limits = c(0, 1)) +
+  theme_minimal(base_size = 10) +
+  labs(
+    title = "Cohen’s Kappa Agreement Between Variables per Participant",
+    x = "Variable 1",
+    y = "Variable 2"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
+    axis.text.y = element_text(size = 6),
+    strip.text = element_text(size = 10)
+  ) +
+  facet_wrap(~ ParticipantID, scales = "free")
+```
+
+#### Visualisation: Bar Plot-- Average Kappa Per Variable (mean of all pairings)
+
+```{r}
+# Compute average Kappa per variable across all pairs it's in
+kappa_bar_data <- cohens_20sec_kappa %>%
+  pivot_longer(cols = c(Var1, Var2), names_to = "Role", values_to = "Variable") %>%
+  group_by(Variable) %>%
+  summarise(Avg_Kappa = mean(Cohen_Kappa, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(Avg_Kappa))
+
+# Bar plot
+ggplot(kappa_bar_data, aes(x = fct_reorder(Variable, Avg_Kappa), y = Avg_Kappa)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Average Cohen's Kappa per Variable (across all pairings)",
+    x = "Variable",
+    y = "Average Kappa"
+  )
+```
+
+### Fleiss' Kappa (3+ raters)
+
+```{r}
+# Define modality-specific binary variable groups (unchanged)
+groundtruth_vars <- c("Predefined_period", "Interview_Binary")
+ecg_vars <- c("HR_binary", "RR_ma_flag", "RR_baseline_flag")
+eda_vars <- c("IsPeak_EDA", "SCR_ma_binary", "SCR_ma_onset", "SCL_ma_binary", 
+              "SCL_ma_sustained", "SCR_baseline_stress_binary", "SCL_baseline_sustained", "FFT_binary")
+fer_vars <- c("Facial_PosNeg_Conf")
+ser_vars <- c("Speech_PosNeg_Conf")
+
+# Combine all binary detector columns
+binary_cols <- c(ecg_vars, eda_vars, fer_vars, ser_vars)
+
+# Function to get binary columns that vary within a participant
+get_varying_cols <- function(df) {
+  binary_cols[sapply(df[binary_cols], function(x) {
+    x <- na.omit(x)
+    length(unique(x)) > 1
+  })]
+}
+
+# Initialize list to store results
+fleiss_kappa_list <- list()
+
+# Unique participants
+participant_ids <- unique(per_20sec_all_binary$ParticipantID)
+
+for (pid in participant_ids) {
+  
+  cat("Processing participant", pid, "...\n")
+  
+  # Filter data for participant
+  df_part <- per_20sec_all_binary %>% filter(ParticipantID == pid)
+  
+  # Get varying columns for this participant
+  valid_cols <- get_varying_cols(df_part)
+  
+  # Need at least 2 raters to compute Fleiss' kappa
+  if (length(valid_cols) < 2) {
+    cat("Skipping participant", pid, "- less than 2 varying binary columns.\n")
+    next
+  }
+  
+  # Subset participant data to these columns
+  df_valid <- df_part[, valid_cols]
+  
+  # Remove rows with any NA (Fleiss kappa requires complete data)
+  df_valid <- na.omit(df_valid)
+  
+  if (nrow(df_valid) == 0) {
+    cat("Skipping participant", pid, "- no complete rows after NA removal.\n")
+    next
+  }
+  
+  # Fleiss kappa expects matrix with rows = items (windows), cols = raters (variables)
+  # Here df_valid is already in that shape
+  
+  # Calculate Fleiss' kappa with error handling
+  tryCatch({
+    kappa_val <- irr::kappam.fleiss(as.matrix(df_valid))$value
+    
+    fleiss_kappa_list[[as.character(pid)]] <- tibble(
+      ParticipantID = pid,
+      Num_Raters = length(valid_cols),
+      Num_Windows = nrow(df_valid),
+      Fleiss_Kappa = kappa_val
+    )
+  }, error = function(e) {
+    cat("Error calculating Fleiss kappa for participant", pid, ":", conditionMessage(e), "\n")
+  })
+}
+
+# Combine all participants results into one dataframe
+fleiss_20sec_kappa <- bind_rows(fleiss_kappa_list)
+
+# View results
+print(fleiss_20sec_kappa)
+
+```
+
+### Signal Detection Analysis: Predefined_period_WindowFlag (ground truth)
+
+Interpretation of sdt_results
+
+-   hit = Proportion of actual stress moments detected (sensitivity or true positive rate)
+
+-   fa = False alarm rate-- Proportion of non-stress falsely flagged
+
+-   d_prime (d') = Sensitivity index. Higher = better detection. 1--2 is decent, \>2 is very good.
+
+-   criterion (c) = Response bias. 0 = neutral; \>0 = conservative (fewer detections); \<0 = liberal (more false alarms)
+
+-   auc = Area Under ROC Curve. Between 0.5 (chance) and 1 (perfect)
+
+-   roc = The actual ROC object used for plotting
+
+```{r}
+# Define the ground truth and comparison variables
+ground_truth_vars <- c("Predefined_period", "Interview_Binary")
+
+comparison_vars <- c(
+  "EDA_Active_20secs_Flag",
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+
+# Function to compute SDT metrics
+compute_sdt_metrics <- function(data, truth_col, prediction_col) {
+  data <- data %>%
+    filter(!is.na(.data[[truth_col]]), !is.na(.data[[prediction_col]]))
+
+  TP <- sum(data[[truth_col]] == 1 & data[[prediction_col]] == 1)
+  TN <- sum(data[[truth_col]] == 0 & data[[prediction_col]] == 0)
+  FP <- sum(data[[truth_col]] == 0 & data[[prediction_col]] == 1)
+  FN <- sum(data[[truth_col]] == 1 & data[[prediction_col]] == 0)
+
+  Accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  Sensitivity <- if ((TP + FN) > 0) TP / (TP + FN) else NA
+  Specificity <- if ((TN + FP) > 0) TN / (TN + FP) else NA
+  Precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA
+  F1 <- if (!is.na(Precision) & !is.na(Sensitivity) & (Precision + Sensitivity) > 0) {
+    2 * Precision * Sensitivity / (Precision + Sensitivity)
+  } else {
+    NA
+  }
+
+  tibble(
+    TP, FP, TN, FN,
+    Accuracy,
+    Sensitivity,
+    Specificity,
+    Precision,
+    F1
+  )
+}
+
+# Loop over each ground truth variable and compute metrics per participant
+sdt_all <- purrr::map_dfr(ground_truth_vars, function(gt_var) {
+  per_20sec_all_binary %>%
+    select(ParticipantID, all_of(gt_var), all_of(comparison_vars)) %>%
+    pivot_longer(cols = all_of(comparison_vars), names_to = "Comparison", values_to = "Prediction") %>%
+    group_by(ParticipantID, Comparison) %>%
+    group_modify(~ compute_sdt_metrics(.x, gt_var, "Prediction")) %>%
+    mutate(Ground_Truth = gt_var) %>%
+    ungroup()
+})
+
+# View results
+print(sdt_all, n = Inf)
+
+```
+
+Interpretation of the summary table variables
+
+-   Hit_Rate = Closer to 1 is better
+-   False_Alarm = Closer to 0 is better (lower is better)
+-   D_prime = \>1 is good. \>2 is excellent (sensitivity)
+-   Criterion = \~0 = neutral, \>0 = conservative (bias towards yes/no)
+-   AUC = \>0.8 = strong, 0.5 = random (overall predictive performance)
+
+### Summary per Variable (Averaged Across Participants)
+
+```{r}
+sdt_20sec_summary <- sdt_all %>%
+  group_by(Comparison) %>%
+  summarise(across(c(Accuracy, Sensitivity, Specificity, Precision, F1),
+                   ~mean(.x, na.rm = TRUE)),
+            .groups = "drop")
+
+print(sdt_20sec_summary)
+```
+
+### Top 5 per Participant
+
+```{r}
+# Reshape the summary to long format for per-metric comparisons
+sdt_long_sorted_20sec <- sdt_all %>%
+  pivot_longer(
+    cols = c(Accuracy, Sensitivity, Specificity, Precision, F1),
+    names_to = "Metric",
+    values_to = "Value"
+  ) %>%
+  arrange(ParticipantID, Comparison, desc(Value))
+
+top5_20sec_per_participant <- sdt_long_sorted_20sec %>%
+  filter(Metric == "F1") %>%
+  group_by(ParticipantID) %>%
+  slice_max(order_by = Value, n = 5, with_ties = FALSE) %>%
+  arrange(ParticipantID, desc(Value))
+
+print(top5_20sec_per_participant)
+```
+
+### Visualisations
+
+#### F1 Score per method, faceted by participant
+
+```{r}
+ggplot(sdt_all, aes(x = reorder(Comparison, F1), y = F1, fill = F1)) +
+  geom_col() +
+  facet_wrap(~ ParticipantID) +
+  coord_flip() +
+  scale_fill_viridis_c(option = "C", direction = -1) +
+  labs(
+    title = "F1 Scores by Method per Participant",
+    x = "Comparison Method",
+    y = "F1 Score"
+  ) +
+  theme_minimal()
+```
+
+#### Accuracy Score per method, faceted by participant
+
+```{r}
+ggplot(sdt_all, aes(x = reorder(Comparison, Accuracy), y = Accuracy, fill = Accuracy)) +
+  geom_col() +
+  facet_wrap(~ ParticipantID) +
+  coord_flip() +
+  scale_fill_viridis_c(option = "C", direction = -1) +
+  labs(
+    title = "Accuracy Scores by Method per Participant",
+    x = "Comparison Method",
+    y = "Accuracy Score"
+  ) +
+  theme_minimal()
+```
+
+#### Precision Score per method, faceted by participant
+
+```{r}
+ggplot(sdt_all, aes(x = reorder(Comparison, Precision), y = Precision, fill = Precision)) +
+  geom_col() +
+  facet_wrap(~ ParticipantID) +
+  coord_flip() +
+  scale_fill_viridis_c(option = "C", direction = -1) +
+  labs(
+    title = "Precision Scores by Method per Participant",
+    x = "Comparison Method",
+    y = "Precision Score"
+  ) +
+  theme_minimal()
+```
+
+#### Sensitivity vs. Specificity per participant (side-by-side bars)
+
+```{r}
+sdt_sens_spec <- sdt_all %>%
+  pivot_longer(cols = c(Sensitivity, Specificity), names_to = "Metric", values_to = "Value")
+
+ggplot(sdt_sens_spec, aes(x = reorder(Comparison, Value), y = Value, fill = Metric)) +
+  geom_col(position = position_dodge(width = 0.7)) +
+  facet_wrap(~ ParticipantID) +
+  coord_flip() +
+  labs(
+    title = "Sensitivity and Specificity by Method per Participant",
+    x = "Comparison Method",
+    y = "Score"
+  ) +
+  scale_fill_manual(values = c("Sensitivity" = "#fc8d59", "Specificity" = "#91bfdb")) +
+  theme_minimal()
+```
+
+#### Inferential statistics on d'
+
+```{r}
+# Calculate d′ and bias (c)
+sdt_20secs_dprime <- sdt_all %>%
+  mutate(
+    hit_rate = TP / (TP + FN),
+    fa_rate = FP / (FP + TN),
+    hit_rate = pmin(pmax(hit_rate, 0.01), 0.99),  # avoid Inf z-scores
+    fa_rate = pmin(pmax(fa_rate, 0.01), 0.99),
+    zHR = qnorm(hit_rate),
+    zFA = qnorm(fa_rate),
+    d_prime = zHR - zFA,
+    bias_c = -0.5 * (zHR + zFA)
+  )
+
+# One-sample t-test: Is d' significantly different from 0?
+t_dprime <- t.test(sdt_20secs_dprime$d_prime, mu = 0)
+print(t_dprime)
+```
+
+#### ROC Curves
+
+```{r}
+ground_truth_vars <- c("Predefined_period", "Interview_Binary")
+participants <- unique(per_20sec_all_binary$ParticipantID)
+
+
+for (p in participants) {
+  pdata <- per_20sec_all_binary %>%
+    filter(ParticipantID == p)
+
+  for (gt_var in ground_truth_vars) {
+    sdt_results <- list()
+
+    for (var in comparison_vars) {
+      dat <- pdata %>%
+        filter(!is.na(.data[[gt_var]]), !is.na(.data[[var]])) %>%
+        select(truth = !!gt_var, pred = !!var)
+
+      if (length(unique(dat$pred)) > 1) {
+        roc_obj <- roc(dat$truth, dat$pred, quiet = TRUE)
+        sdt_results[[var]] <- list(roc = roc_obj)
+      }
+    }
+
+    if (length(sdt_results) == 0) next
+
+    # Plot ROC with appropriate title
+    layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
+    par(mar = c(4, 4, 2, 1))
+
+    plot(0, 0, type = "n", xlab = "False Positive Rate", ylab = "True Positive Rate",
+         xlim = c(0, 1), ylim = c(0, 1),
+         main = paste("ROC Curves - Participant", p, "\nGround Truth:", gt_var),
+         cex.lab = 0.9, cex.axis = 0.8)
+    abline(0, 1, lty = 2, col = "gray")
+
+    cols <- rainbow(length(sdt_results))
+    i <- 1
+    for (r in names(sdt_results)) {
+      roc_obj <- sdt_results[[r]]$roc
+      lines(1 - roc_obj$specificities, roc_obj$sensitivities, col = cols[i], lwd = 2)
+      i <- i + 1
+    }
+
+    par(mar = c(0, 0, 0, 0))
+    plot.new()
+    legend_labels <- str_wrap(names(sdt_results), width = 25)
+    legend("left", legend = legend_labels, col = cols, lwd = 2, cex = 0.7, bty = "n")
+  }
+}
+
+```
+
+```{r}
+library(dplyr)
+library(pROC)
+library(ggplot2)
+library(stringr)
+
+ground_truth_var <- "Predefined_period"
+participants <- unique(per_20sec_all_binary$ParticipantID)
+comparison_vars <- c("HR_binary", "RR_ma_flag", "RR_baseline_flag", 
+                     "IsPeak_EDA", "SCR_ma_binary", "SCR_ma_onset", 
+                     "SCL_ma_binary", "SCL_ma_sustained", 
+                     "SCR_baseline_stress_binary", "SCL_baseline_sustained",
+                     "FFT_binary", "Facial_PosNeg_Conf", "Speech_PosNeg_Conf")
+
+# Prepare empty dataframe to store ROC data for all participants and predictors
+roc_data <- data.frame()
+
+for (p in participants) {
+  pdata <- per_20sec_all_binary %>%
+    filter(ParticipantID == p, !is.na(.data[[ground_truth_var]]))
+  
+  for (var in comparison_vars) {
+    dat <- pdata %>%
+      filter(!is.na(.data[[var]])) %>%
+      select(truth = !!sym(ground_truth_var), pred = !!sym(var))
+    
+    # Only compute ROC if predictor has variation
+    if (length(unique(dat$pred)) > 1) {
+      roc_obj <- roc(dat$truth, dat$pred, quiet = TRUE)
+      roc_df <- data.frame(
+        FPR = 1 - roc_obj$specificities,
+        TPR = roc_obj$sensitivities,
+        Predictor = var,
+        ParticipantID = p
+      )
+      roc_data <- bind_rows(roc_data, roc_df)
+    }
+  }
+}
+
+# Check if data exists
+if (nrow(roc_data) > 0) {
+  ggplot(roc_data, aes(x = FPR, y = TPR, color = Predictor)) +
+    geom_line(size = 1) +
+    geom_abline(linetype = "dashed", color = "gray60") +
+    facet_wrap(vars(ParticipantID), ncol = 4) +
+    scale_color_brewer(palette = "Set1") +
+    labs(
+      title = "ROC Curves by Participant\nGround Truth: Predefined Period",
+      x = "False Positive Rate",
+      y = "True Positive Rate",
+      color = "Predicted Signal"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      strip.text = element_text(size = 16),
+      plot.title = element_text(face = "bold", size = 16)
+    )
+} else {
+  message("No ROC data available for 'Predefined_period'.")
+}
+
+```
+
+## Event-based Analyses
+
+### Cohen's Kappa
+
+-   \<0.20 = Slight agreement
+
+-   0.21-0.40 = Fair agreement
+
+-   0.41-0.60 = Moderate agreement
+
+-   0.61-0.80 = Substantial agreement
+
+-   0.81-1.00 = Almost perfect agreement
+
+```{r}
+# Recode NAs
+per_20sec_all_binary <- per_20sec_all_binary %>%
+  mutate(Event_Name = ifelse(is.na(Event_Name), "Null", Event_Name))
+
+per_20sec_all_binary <- per_20sec_all_binary %>%
+  mutate(Event_Group = ifelse(is.na(Event_Group), "Null", Event_Group))
+
+
+```
+
+XXX
+
+```{r}
+# Define your binary columns to check - update as needed
+binary_flag_cols <- c(
+  "EDA_Active_20secs_Flag",
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag"
+)
+
+# Function to find columns with variation (both 0 and 1)
+get_varying_cols <- function(df, cols) {
+  cols[sapply(df[cols], function(x) {
+    x <- na.omit(x)
+    length(unique(x)) > 1
+  })]
+}
+
+# Initialize output lists
+kappa_results_list_eventbased <- list()
+excluded_cols_list_eventbased <- list()
+
+# Get unique Event_Group values from your current data frame
+event_groups <- unique(per_20sec_all_binary$Event_Group)
+
+# Loop through each event group
+for (eg in event_groups) {
+  
+  cat("Processing Event_Group:", eg, "\n")
+  
+  # Filter data for this event group
+  df_event <- per_20sec_all_binary %>%
+    filter(Event_Group == eg)
+  
+  # Identify which binary columns vary in this event group
+  valid_cols <- get_varying_cols(df_event, binary_flag_cols)
+  excluded_cols <- setdiff(binary_flag_cols, valid_cols)
+  excluded_cols_list_eventbased[[as.character(eg)]] <- excluded_cols
+  
+  # If fewer than 2 valid columns, skip this event group
+  if (length(valid_cols) < 2) {
+    cat("Skipping Event_Group", eg, "- less than 2 variable columns.\n")
+    next
+  }
+  
+  # Calculate all pairwise Cohen's Kappa between valid columns
+  combs <- combn(valid_cols, 2, simplify = FALSE)
+  
+  kappas <- map_dfr(combs, function(pair) {
+    dat <- df_event[, pair]
+    dat <- na.omit(dat)
+    if (nrow(dat) == 0) return(NULL)
+    
+    kappa_val <- tryCatch({
+      irr::kappa2(dat)$value
+    }, error = function(e) NA)
+    
+    tibble(
+      Event_Group = eg,
+      Var1 = pair[1],
+      Var2 = pair[2],
+      Cohen_Kappa = kappa_val
+    )
+  })
+  
+  # Store results for this event group
+  kappa_results_list_eventbased[[as.character(eg)]] <- kappas
+}
+
+# Combine all results into one dataframe
+cohens_20sec_kappa_eventbased <- bind_rows(kappa_results_list_eventbased)
+```
+
+#### Variables omitted per participant due to no variance
+
+```{r}
+# Show all excluded columns per participant
+excluded_cols_list_eventbased <- tibble(
+  ParticipantID = names(excluded_cols_list_eventbased),
+  Excluded_Columns = sapply(excluded_cols_list_eventbased, paste, collapse = ", ")
+)
+
+print(excluded_cols_list_eventbased)
+```
+
+#### Quick Overview
+
+```{r}
+cohens_20sec_summary_eventbased <- cohens_20sec_kappa_eventbased %>%
+  group_by(Event_Group) %>%
+  summarise(
+    Avg_Kappa = mean(Cohen_Kappa, na.rm = TRUE),
+    Num_Pairs = n()
+  )
+
+cohens_20sec_summary_eventbased
+```
+
+#### Best and Worst Cohen's Kappas
+
+```{r}
+top_kappas_eventbased <- cohens_20sec_kappa_eventbased %>%
+  filter(!is.na(Cohen_Kappa)) %>%  
+  group_by(Event_Group) %>%
+  arrange(desc(Cohen_Kappa), .by_group = TRUE) %>%
+  summarise(
+    Top_5_Best = list(head(tibble(Var1, Var2, Cohen_Kappa), 5)),
+    Top_5_Worst = list(head(tibble(Var1, Var2, Cohen_Kappa) %>% arrange(Cohen_Kappa), 5)),
+    .groups = "drop"
+  )
+
+# Number of Event_Groups with valid Kappa data
+nrow(top_kappas_eventbased)
+
+
+# Top Results
+# Baseline
+top_kappas_eventbased %>% filter(Event_Group == "Baseline") %>% pull(Top_5_Best)
+
+# Introduction
+top_kappas_eventbased %>% filter(Event_Group == "Introduction") %>% pull(Top_5_Best)
+
+# MAT_Afterturn
+top_kappas_eventbased %>% filter(Event_Group == "MAT") %>% pull(Top_5_Best)
+
+# MAT_Beforeturn
+top_kappas_eventbased %>% filter(Event_Group == "Recovery") %>% pull(Top_5_Best)
+
+# MAT_Exp
+top_kappas_eventbased %>% filter(Event_Group == "SUCT") %>% pull(Top_5_Best)
+
+# MAT_Intro
+top_kappas_eventbased %>% filter(Event_Group == "Null") %>% pull(Top_5_Best)
+
+# MAT_Order
+top_kappas_eventbased %>% filter(Event_Group == "Goodbye") %>% pull(Top_5_Best)
+
+```
+
+#### Visualisation: Violin Plot
+
+```{r}
+# Faceted violin plots of Cohen's Kappa per participant
+ggplot(cohens_20sec_kappa_eventbased, aes(x = factor(1), y = Cohen_Kappa)) +
+  geom_violin(fill = "#74a9cf") +
+  geom_jitter(width = 0.1, alpha = 0.6) +
+  facet_wrap(~ Event_Group, scales = "free_y") +
+  labs(
+    title = "Distribution of Pairwise Cohen’s Kappa per Participant",
+    x = "Event Group",
+    y = "Cohen’s Kappa"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+```
+
+#### Visualisation: Heatmap
+
+#### Visualisation: Heatmap per participant
+
+```{r}
+# Prepare symmetric variable pairs
+cohens_20sec_kappa_eventbased_pairs <- cohens_20sec_kappa_eventbased %>%
+  mutate(
+    Var1_fixed = pmin(Var1, Var2),
+    Var2_fixed = pmax(Var1, Var2)
+  ) %>%
+  select(Event_Group, Var1 = Var1_fixed, Var2 = Var2_fixed, Cohen_Kappa) %>%
+  filter(!is.na(Cohen_Kappa))
+
+# Split data by event
+event_split <- cohens_20sec_kappa_eventbased_pairs %>%
+  group_by(Event_Group) %>%
+  group_split()
+
+# Get event names
+event_names <- cohens_20sec_kappa_eventbased_pairs %>%
+  group_by(Event_Group) %>%
+  group_keys() %>%
+  pull(Event_Group)
+
+# Create plots and assign names
+plots_by_event <- map2(event_split, event_names, ~ {
+  ggplot(.x, aes(x = Var1, y = Var2, fill = Cohen_Kappa)) +
+    geom_tile(color = "white") +
+    scale_fill_viridis_c(name = "Kappa", option = "plasma", na.value = "grey90", limits = c(0, 1)) +
+    theme_minimal(base_size = 10) +
+    labs(
+      title = paste("Cohen’s Kappa – Event:", .y),
+      x = "Variable 1",
+      y = "Variable 2"
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+      axis.text.y = element_text(size = 8)
+    )
+})
+
+# Set the names so you can index by name
+names(plots_by_event) <- event_names
+
+
+print(plots_by_event[["Baseline"]])
+print(plots_by_event[["Introduction"]])
+print(plots_by_event[["Recovery"]])
+print(plots_by_event[["MAT"]])
+print(plots_by_event[["SUCT"]])
+print(plots_by_event[["Null"]])
+print(plots_by_event[["Goodbye"]])
+```
+
+```{r}
+#FACETED
+# Prepare symmetric variable pairs
+cohens_20sec_kappa_eventbased_pairs <- cohens_20sec_kappa_eventbased %>%
+  mutate(
+    Var1_fixed = pmin(Var1, Var2),
+    Var2_fixed = pmax(Var1, Var2)
+  ) %>%
+  select(Event_Group, Var1 = Var1_fixed, Var2 = Var2_fixed, Cohen_Kappa) %>%
+  filter(!is.na(Cohen_Kappa))
+
+# Create a faceted heatmap plot
+ggplot(cohens_20sec_kappa_eventbased_pairs, aes(x = Var1, y = Var2, fill = Cohen_Kappa)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(name = "Kappa", option = "plasma", na.value = "grey90", limits = c(0, 1)) +
+  facet_wrap(~ Event_Group, scales = "free", ncol = 2) +
+  theme_minimal(base_size = 10) +
+  labs(
+    title = "Cohen’s Kappa by Event Group",
+    x = "Variable 1",
+    y = "Variable 2"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8),
+    strip.text = element_text(size = 10, face = "bold")
+  )
+
+```
+
+#### Visualisation: Bar Plot-- Average Kappa Per Variable (mean of all pairings)
+
+```{r}
+# Pivot long to get each variable in one column, tied to its Event_Group
+kappa_bar_data_eventbased <- cohens_20sec_kappa_eventbased %>%
+  pivot_longer(cols = c(Var1, Var2), names_to = "Role", values_to = "Variable") %>%
+  group_by(Event_Group, Variable) %>%
+  summarise(Avg_Kappa = mean(Cohen_Kappa, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Event_Group, desc(Avg_Kappa))
+
+
+# Bar plot
+ggplot(kappa_bar_data_eventbased, aes(x = fct_reorder(Variable, Avg_Kappa), y = Avg_Kappa)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~ Event_Group, scales = "free_y") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Average Cohen's Kappa per Variable by Event",
+    x = "Variable",
+    y = "Average Kappa"
+  )
+```
+
+### Fleiss' Kappa (3+ raters)
+
+```{r}
+# Event only agreement is not recommended due to data structure mismatch, losing information between-subject variability. Ignoring participant clustering 
+# Define modality-specific binary variable groups
+groundtruth_vars <- c("Predefined_period", "Interview_Binary")
+ecg_vars <- c("HR_binary", "RR_ma_flag", "RR_baseline_flag")
+eda_vars <- c("IsPeak_EDA", "SCR_ma_binary", "SCR_ma_onset", "SCL_ma_binary", 
+              "SCL_ma_sustained", "SCR_baseline_stress_binary", "SCL_baseline_sustained", "FFT_binary")
+fer_vars <- c("Facial_PosNeg_Conf")
+ser_vars <- c("Speech_PosNeg_Conf")
+
+# Combine all binary detector columns
+binary_cols <- c(ecg_vars, eda_vars, fer_vars, ser_vars)
+
+# Function to get varying columns (must contain both 0s and 1s)
+get_varying_cols <- function(df) {
+  binary_cols[sapply(df[binary_cols], function(x) {
+    x <- na.omit(x)
+    length(unique(x)) > 1
+  })]
+}
+
+# Initialize output list
+fleiss_kappa_event_list <- list()
+
+# Loop through each participant
+for (pid in unique(per_20sec_all_binary$ParticipantID)) {
+  
+  cat("Processing participant:", pid, "\n")
+  df_pid <- per_20sec_all_binary %>% filter(ParticipantID == pid)
+  
+  for (event in unique(df_pid$Event_Group)) {
+    
+    df_event <- df_pid %>% filter(Event_Group == event)
+    
+    # Get varying (informative) binary columns
+    valid_cols <- get_varying_cols(df_event)
+    
+    if (length(valid_cols) < 2) {
+      cat("Skipping", pid, "-", event, ": not enough varying raters.\n")
+      next
+    }
+    
+    df_valid <- df_event[, valid_cols] %>% na.omit()
+    
+    if (nrow(df_valid) == 0) {
+      cat("Skipping", pid, "-", event, ": no complete rows.\n")
+      next
+    }
+    
+    # Try Fleiss' Kappa calculation
+    tryCatch({
+      kappa_val <- irr::kappam.fleiss(as.matrix(df_valid))$value
+      
+      fleiss_kappa_event_list[[paste(pid, event, sep = "_")]] <- tibble(
+        ParticipantID = pid,
+        Event_Group = event,
+        Num_Raters = length(valid_cols),
+        Num_Windows = nrow(df_valid),
+        Fleiss_Kappa = kappa_val
+      )
+      
+    }, error = function(e) {
+      cat("Error for", pid, "-", event, ":", conditionMessage(e), "\n")
+    })
+  }
+}
+
+# Combine into final dataframe
+fleiss_kappa_eventxid <- bind_rows(fleiss_kappa_event_list)
+```
+
+```{r}
+fleiss_kappa_eventxid
+```
+
+## Signal Detection Analysis: Predefined_period_WindowFlag (ground truth)
+
+Interpretation of sdt_results
+
+-   hit = Proportion of actual stress moments detected (sensitivity or true positive rate)
+
+-   fa = False alarm rate-- Proportion of non-stress falsely flagged
+
+-   d_prime (d') = Sensitivity index. Higher = better detection. 1--2 is decent, \>2 is very good.
+
+-   criterion (c) = Response bias. 0 = neutral; \>0 = conservative (fewer detections); \<0 = liberal (more false alarms)
+
+-   auc = Area Under ROC Curve. Between 0.5 (chance) and 1 (perfect)
+
+-   roc = The actual ROC object used for plotting
+
+```{r}
+# Define the ground truth and comparison variables
+ground_truth_vars <- "Interview_Binary"
+
+# Define the detector variables
+comparison_vars <- c(
+  "EDA_Active_20secs_Flag",
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+
+# Function to compute SDT metrics for a pair of binary variables
+compute_sdt_metrics <- function(data, truth, prediction) {
+  data <- data %>%
+    filter(!is.na(.data[[truth]]), !is.na(.data[[prediction]]))
+  
+  TP <- sum(data[[truth]] == 1 & data[[prediction]] == 1)
+  TN <- sum(data[[truth]] == 0 & data[[prediction]] == 0)
+  FP <- sum(data[[truth]] == 0 & data[[prediction]] == 1)
+  FN <- sum(data[[truth]] == 1 & data[[prediction]] == 0)
+
+  Accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  Sensitivity <- if ((TP + FN) > 0) TP / (TP + FN) else NA
+  Specificity <- if ((TN + FP) > 0) TN / (TN + FP) else NA
+  Precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA
+  F1 <- if (!is.na(Precision) & !is.na(Sensitivity) & (Precision + Sensitivity) > 0) {
+    2 * Precision * Sensitivity / (Precision + Sensitivity)
+  } else {
+    NA
+  }
+
+  tibble(
+    TP, FP, TN, FN,
+    Accuracy,
+    Sensitivity,
+    Specificity,
+    Precision,
+    F1
+  )
+}
+
+# Initialize an empty list to store results
+sdt_eventbased_list <- list()
+
+# Loop over each ground truth variable
+for (gt_var in ground_truth_vars) {
+  sdt_eventbased <- per_20sec_all_binary %>%
+    select(Event_Group, all_of(gt_var), all_of(comparison_vars)) %>%
+    pivot_longer(cols = all_of(comparison_vars), names_to = "Comparison", values_to = "Prediction") %>%
+    group_by(Event_Group, Comparison) %>%
+    group_modify(~ compute_sdt_metrics(.x, gt_var, "Prediction")) %>%
+    ungroup() %>%
+    mutate(Ground_Truth = gt_var)  # Track which GT was used
+
+  sdt_eventbased_list[[gt_var]] <- sdt_eventbased
+}
+
+# Combine into a single dataframe
+sdt_20sec_eventbased <- bind_rows(sdt_eventbased_list)
+
+# Print full result
+print(sdt_20sec_eventbased, n = Inf)
+
+```
+
+Interpretation of the summary table variables
+
+-   Hit_Rate = Closer to 1 is better
+-   False_Alarm = Closer to 0 is better (lower is better)
+-   D_prime = \>1 is good. \>2 is excellent (sensitivity)
+-   Criterion = \~0 = neutral, \>0 = conservative (bias towards yes/no)
+-   AUC = \>0.8 = strong, 0.5 = random (overall predictive performance)
+
+### Summary per Variable (Averaged Across Participants)
+
+```{r}
+sdt_20sec_summary_eventbased <- sdt_20sec_eventbased %>%
+  group_by(Event_Group, Comparison) %>%
+  summarise(across(c(Accuracy, Sensitivity, Specificity, Precision, F1),
+                   ~mean(.x, na.rm = TRUE)),
+            .groups = "drop")
+
+print(sdt_20sec_summary_eventbased)
+```
+
+#### Top 5 and Worst 5
+
+```{r}
+# Reshape the summary to long format for per-metric comparisons
+sdt_long_sorted_20sec_eventbased <- sdt_20sec_eventbased %>%
+  pivot_longer(
+    cols = c(Accuracy, Sensitivity, Specificity, Precision, F1),
+    names_to = "Metric",
+    values_to = "Value"
+  ) %>%
+  arrange(Event_Group, Comparison, desc(Value))
+
+top3_20sec_eventbased <- sdt_long_sorted_20sec_eventbased %>%
+  filter(Metric == "F1") %>%
+  group_by(Event_Group) %>%
+  slice_max(order_by = Value, n = 3, with_ties = FALSE) %>%
+  arrange(Event_Group, desc(Value))
+
+print(top3_20sec_eventbased)
+
+```
+
+### Visualisations
+
+#### F1 Score per method, faceted by participant
+
+```{r}
+ggplot(sdt_20sec_eventbased, aes(x = reorder(Comparison, F1), y = F1, fill = F1)) +
+  geom_col() +
+  facet_wrap(~ Event_Group) +
+  coord_flip() +
+  scale_fill_viridis_c(option = "C", direction = -1) +
+  labs(
+    title = "F1 Scores by Method per Event",
+    x = "Comparison Method",
+    y = "F1 Score"
+  ) +
+  theme_minimal()
+```
+
+#### Sensitivity v. Specificity
+
+```{r}
+sdt_sens_spec_eventbased <- sdt_20sec_eventbased %>%
+  pivot_longer(cols = c(Sensitivity, Specificity), names_to = "Metric", values_to = "Value")
+
+ggplot(sdt_sens_spec_eventbased, aes(x = reorder(Comparison, Value), y = Value, fill = Metric)) +
+  geom_col(position = position_dodge(width = 0.7)) +
+  facet_wrap(~ Event_Group) +
+  coord_flip() +
+  labs(
+    title = "Sensitivity and Specificity by Method per Participant",
+    x = "Comparison Method",
+    y = "Score"
+  ) +
+  scale_fill_manual(values = c("Sensitivity" = "#fc8d59", "Specificity" = "#91bfdb")) +
+  theme_minimal()
+```
+
+#### ROC Curves
+
+```{r}
+# Define unique events
+events <- unique(per_20sec_all_binary$Event_Group)
+
+# Loop over each event
+for (e in events) {
+  
+  # Filter data for the current event
+  edata <- per_20sec_all_binary %>%
+    filter(Event_Group == e)
+
+  # Prepare to collect ROC objects
+  sdt_results <- list()
+  
+ for (var in comparison_vars) {
+  dat <- edata %>%
+    filter(!is.na(.data[[ground_truth_vars]]), !is.na(.data[[var]])) %>%
+    select(truth = !!ground_truth_vars, pred = !!var)
+
+  # Check if both truth and prediction contain 0 and 1
+  if (length(unique(dat$truth)) > 1 && length(unique(dat$pred)) > 1) {
+    roc_obj <- pROC::roc(dat$truth, dat$pred, quiet = TRUE)
+    sdt_results[[var]] <- list(roc = roc_obj)
+  }
+}
+
+
+  # Skip plotting if no valid ROC curves for this event
+  if (length(sdt_results) == 0) next
+
+  # Layout for ROC + Legend
+  layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
+  par(mar = c(4, 4, 2, 1))  # margins for main plot
+
+  # Blank ROC plot
+  plot(0, 0, type = "n", xlab = "False Positive Rate", ylab = "True Positive Rate",
+       xlim = c(0, 1), ylim = c(0, 1), main = paste("ROC Curves - Event", e),
+       cex.lab = 0.9, cex.axis = 0.8)
+  abline(0, 1, lty = 2, col = "gray")
+
+  # Plot ROC curves
+  cols <- rainbow(length(sdt_results))
+  i <- 1
+  for (r in names(sdt_results)) {
+    roc_obj <- sdt_results[[r]]$roc
+    lines(1 - roc_obj$specificities, roc_obj$sensitivities, col = cols[i], lwd = 2)
+    i <- i + 1
+  }
+
+  # Legend panel
+  par(mar = c(0, 0, 0, 0))
+  plot.new()
+  legend_labels <- stringr::str_wrap(names(sdt_results), width = 25)
+  legend("left", legend = legend_labels, col = cols, lwd = 2, cex = 0.7, bty = "n")
+}
+```
+
+## Event x Participant Based
+
+### Signal Detection Analysis: Predefined_period_WindowFlag (ground truth)
+
+```{r}
+# Define ground truth variables to test
+ground_truth_vars <- c("Interview_Binary")
+
+# Define detector variables
+comparison_vars <- c(
+  "EDA_Active_20secs_Flag",
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+
+# Function to compute SDT metrics for one pair
+compute_sdt_metrics <- function(data, truth, prediction) {
+  data <- data %>%
+    filter(!is.na(.data[[truth]]), !is.na(.data[[prediction]]))
+  
+  TP <- sum(data[[truth]] == 1 & data[[prediction]] == 1)
+  TN <- sum(data[[truth]] == 0 & data[[prediction]] == 0)
+  FP <- sum(data[[truth]] == 0 & data[[prediction]] == 1)
+  FN <- sum(data[[truth]] == 1 & data[[prediction]] == 0)
+  
+  Accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  Sensitivity <- if ((TP + FN) > 0) TP / (TP + FN) else NA
+  Specificity <- if ((TN + FP) > 0) TN / (TN + FP) else NA
+  Precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA
+  F1 <- if (!is.na(Precision) & !is.na(Sensitivity) & (Precision + Sensitivity) > 0) {
+    2 * Precision * Sensitivity / (Precision + Sensitivity)
+  } else {
+    NA
+  }
+  
+  tibble(
+    TP, FP, TN, FN,
+    Accuracy,
+    Sensitivity,
+    Specificity,
+    Precision,
+    F1
+  )
+}
+
+# Loop over both ground truth variables
+sdt_all <- lapply(ground_truth_vars, function(gt_var) {
+  per_20sec_all_binary %>%
+    select(Event_Group, ParticipantID, all_of(gt_var), all_of(comparison_vars)) %>%
+    pivot_longer(cols = all_of(comparison_vars), names_to = "Comparison", values_to = "Prediction") %>%
+    group_by(Event_Group, ParticipantID, Comparison) %>%
+    group_modify(~ compute_sdt_metrics(.x, gt_var, "Prediction")) %>%
+    mutate(Ground_Truth = gt_var) %>%
+    ungroup()
+})
+
+# Combine results from both GT variables
+sdt_20sec_eventxpid <- bind_rows(sdt_all)
+
+# View results
+print(sdt_20sec_eventxpid, n = Inf)
+
+```
+
+Interpretation of the summary table variables
+
+-   Hit_Rate = Closer to 1 is better
+-   False_Alarm = Closer to 0 is better (lower is better)
+-   D_prime = \>1 is good. \>2 is excellent (sensitivity)
+-   Criterion = \~0 = neutral, \>0 = conservative (bias towards yes/no)
+-   AUC = \>0.8 = strong, 0.5 = random (overall predictive performance)
+
+### Summary per Variable (Averaged Across Participants)
+
+```{r}
+sdt_20sec_summary_eventxpid <- sdt_20sec_eventxpid %>%
+  group_by(Event_Group, ParticipantID, Comparison) %>%
+  summarise(across(c(Accuracy, Sensitivity, Specificity, Precision, F1),
+                   ~mean(.x, na.rm = TRUE)),
+            .groups = "drop")
+
+print(sdt_20sec_summary_eventxpid)
+```
+
+#### Top 5 and Worst 5
+
+```{r}
+# Reshape the summary to long format for per-metric comparisons
+sdt_long_sorted_20sec_eventxpid <- sdt_20sec_eventxpid %>%
+  pivot_longer(
+    cols = c(Accuracy, Sensitivity, Specificity, Precision, F1),
+    names_to = "Metric",
+    values_to = "Value"
+  ) %>%
+  arrange(Event_Group, ParticipantID, Comparison, desc(Value))
+
+# Top 5 comparisons by F1 per participant *and* event
+top3_20sec_per_eventxpid <- sdt_long_sorted_20sec_eventxpid %>%
+  filter(Metric == "F1") %>%
+  group_by(Event_Group, ParticipantID) %>%
+  slice_max(order_by = Value, n = 2, with_ties = FALSE) %>%
+  arrange(Event_Group, ParticipantID, desc(Value))
+
+print(top3_20sec_per_eventxpid, n = Inf)
+```
+
+### Visualisations
+
+#### F1 Score per method, faceted by participant
+
+```{r}
+# Split the data by ParticipantID and Event_Group
+sdt_split_eventxpid <- sdt_20sec_eventxpid %>%
+  select(ParticipantID, Event_Group, Comparison, F1) %>%
+  group_split(ParticipantID, Event_Group)
+
+# Create unique names for each group
+group_labels <- sdt_20sec_eventxpid %>%
+  distinct(ParticipantID, Event_Group) %>%
+  mutate(label = paste0("Participant_", ParticipantID, "_Event_", Event_Group)) %>%
+  pull(label)
+
+# Loop through each subset and generate plots
+# Loop through each subset and generate plots with fixed y-axis
+plot_list <- map2(sdt_split_eventxpid, group_labels, ~ {
+  ggplot(.x, aes(x = reorder(Comparison, F1), y = F1, fill = F1)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_viridis_c(option = "C", direction = -1) +
+    scale_y_continuous(limits = c(0, 1)) +  # Fix y-axis range
+    labs(
+      title = paste("F1 Scores by Method\n", .y),
+      x = "Comparison Method",
+      y = "F1 Score"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "none")
+})
+
+# Display all plots interactively
+walk(plot_list, print)
+
+```
+
+#### Inferential statistics on d'
+
+```{r}
+# Calculate d′ and bias (c)
+sdt_20sec_eventxpid_prime <- sdt_20sec_eventxpid %>%
+  mutate(
+    hit_rate = TP / (TP + FN),
+    fa_rate = FP / (FP + TN),
+    hit_rate = pmin(pmax(hit_rate, 0.01), 0.99),  # avoid Inf z-scores
+    fa_rate = pmin(pmax(fa_rate, 0.01), 0.99),
+    zHR = qnorm(hit_rate),
+    zFA = qnorm(fa_rate),
+    d_prime = zHR - zFA,
+    bias_c = -0.5 * (zHR + zFA)
+  )
+
+# One-sample t-test: Is d' significantly different from 0?
+t_dprime <- t.test(sdt_20sec_eventxpid_prime$d_prime, mu = 0)
+print(t_dprime)
+```
+
+# Descriptive Statistics Analyses
+
+## Frequency and Proportion of Stress Labels
+
+### By Modality -- Across All Participants and Events
+
+```{r}
+# Vector of all binary columns
+comparison_vars <- c(
+  "Predefined_period", "Interview_Binary", "HR_binary", "RR_ma_flag", "RR_baseline_flag", "IsPeak_EDA", "SCR_ma_binary", "SCR_ma_onset", "SCL_ma_binary", "SCL_ma_sustained", "SCR_baseline_stress_binary", "SCL_baseline_sustained", "Facial_PosNeg_Conf", "Speech_PosNeg_Conf","EDA_Active_20secs_Flag", "FFT_binary",
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "EDA_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+
+freq_all <- per_20sec_all_binary %>%
+  summarise(across(all_of(comparison_vars),
+                   list(Freq = ~sum(. == 1, na.rm = TRUE),
+                        Perc = ~mean(. == 1, na.rm = TRUE) * 100),
+                   .names = "{.col}_{.fn}")) %>%
+  pivot_longer(
+    everything(),
+    names_to = c("Method", "Metric"),
+    names_pattern = "^(.*)_(Freq|Perc)$"
+  ) %>%
+  group_by(Method, Metric) %>%
+  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Metric, values_from = value) %>%
+  arrange(desc(Perc))
+
+freq_all
+
+```
+
+### By Participant
+
+```{r}
+comparison_vars <- c("EDA_Active_20secs_Flag", 
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+  
+freq_by_participant <- per_20sec_all_binary %>%
+  group_by(ParticipantID) %>%
+  summarise(across(all_of(comparison_vars),
+                   list(Freq = ~sum(. == 1, na.rm = TRUE),
+                        Perc = ~mean(. == 1, na.rm = TRUE) * 100),
+                   .names = "{.col}_{.fn}")) %>%
+  pivot_longer(
+    -ParticipantID,
+    names_to = c("Method", "Metric"),
+    names_pattern = "^(.*)_(Freq|Perc)$"
+  ) %>%
+  group_by(ParticipantID, Method, Metric) %>%
+  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Metric, values_from = value) %>%
+  arrange(ParticipantID, desc(Perc))
+
+freq_by_participant
+
+```
+
+### By Event
+
+```{r}
+comparison_vars <- c(
+  "EDA_Active_20secs_Flag", 
+  "ECG_Active_20secs_Flag",
+  "FER_Active_20secs_Flag",
+  "SER_Active_20secs_Flag",
+  "Converging_Active_20sec_Flag"
+)
+
+freq_by_event <- per_20sec_all_binary %>%
+  group_by(Event_Group) %>%
+  summarise(across(all_of(comparison_vars),
+                   list(Freq = ~sum(. == 1, na.rm = TRUE),
+                        Perc = ~mean(. == 1, na.rm = TRUE) * 100),
+                   .names = "{.col}_{.fn}"),
+            .groups = "drop") %>%
+  pivot_longer(
+    -Event_Group,
+    names_to = c("Method", "Metric"),
+    names_pattern = "^(.*)_(Freq|Perc)$"
+  ) %>%
+  pivot_wider(names_from = Metric, values_from = value) %>%
+  arrange(Event_Group, desc(Perc))
+
+freq_by_event
+```
+
+## Report Tables & Visualisations
+
+### Descriptive
+
+```{r}
+# Load required package
+# Define the variable summary table
+variable_table <- data.frame(
+  Variable = c(
+    "RR interval (MA)",
+    "RR interval (Baseline)",
+    "Heart Rate (Binary)",
+    "SCR Onset Latency",
+    "SCR Amplitude (MA)",
+    "SCR Amplitude (Baseline)",
+    "SCL (Moving Average)",
+    "SCL (Sustained MA)",
+    "SCL (Sustained BL)",
+    "EDA Peak Frequency",
+    "EDA FFT-based Activity",
+    "Facial Expression",
+    "Speech Emotion"
+  ),
+  Shorthand = c(
+    "RR_ma",
+    "RR_baseline; RR_bl",
+    "HR_binary; HR_bin",
+    "SCR_ma_onset; SCR_onset",
+    "SCR_ma_binary; SCR_ma",
+    "SCR_baseline_stress; SCR_bl",
+    "SCL_ma_binary; SCL_ma",
+    "SCL_ma_sustained; SCL_ma_sus",
+    "SCL_baseline_sustained; SCL_bl_sus",
+    "IsPeak_EDA; EDA_peak",
+    "FFT_binary; FFT",
+    "FER",
+    "SER"
+  ),
+  Description = c(
+    "Indicates stress episodes based on moving average of RR intervals (HRV); lower RR typically signals higher arousal/stress.",
+    "Shows whether RR intervals deviate significantly from the individual’s baseline.",
+    "Elevated heart rate during a given window, based on a defined threshold corresponding with natural heart rate.",
+    "Marks the first timepoint of an EDA-based stress event (when EDA exceeds threshold, initiating a stress episode).",
+    "Amplitude-based increase using moving average.",
+    "Sustained amplitude increase vs baseline.",
+    "Increase in tonic skin conductance level relative to moving average.",
+    "Prolonged elevation in tonic arousal (SCL) across multiple windows.",
+    "Sustained SCL increase compared to pre-task baseline.",
+    "Indicates if the current timepoint is a peak in EDA, often related to a spike in sympathetic activation.",
+    "Frequency-based spectral energy increase in EDA signal.",
+    "Indicates whether the valence of the recorded facial emotion is negative and whether the confidence level was valid.",
+    "Indicates whether the valence of the recorded speech emotion is negative and whether the confidence level was valid."
+  ),
+  Threshold = c(
+    "25",
+    "20",
+    "3",
+    "3",
+    "3",
+    "2",
+    "2",
+    "2",
+    "2",
+    "2",
+    "3",
+    "4",
+    "2"
+  ),
+  stringsAsFactors = FALSE
+)
+
+
+# View table in R
+print(variable_table)
+
+
+# Load required packages
+library(knitr)
+library(kableExtra)
+
+# Generate a styled table
+kable(variable_table, caption = "Summary of Stress Detection Variables and Thresholds") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE, 
+                position = "center") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+
+```
+
+```{r}
+
+# Combine all three tables into one long-format dataframe
+descriptive_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  ECG = c(30, 7, 13, 9, 11, 10),
+  ECG_pct = c("29%", "6%", "12%", "8%", "12%", "11%"),
+  EDA = c(33, 36, 22, 42, 23, 34),
+  EDA_pct = c("31%", "34%", "19%", "15%", "26%", "38%"),
+  FER = c(38, 78, 80, 67, 19, 42),
+  FER_pct = c("36%", "74%", "71%", "59%", "21%", "47%"),
+  SER = c(50, 48, 38, 46, 35, 38),
+  SER_pct = c("48%", "46%", "34%", "41%", "39%", "42%"),
+  Converging = c(21, 18, 9, 17, 9, 8),
+  Converging_pct = c("20%", "17%", "7%", "15%", "10%", "9%")
+)
+
+# Print the table nicely
+descriptive_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>Count of Stress Detections Per Independent Stress Indicator Per Participant</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+```
+
+```{r}
+library(tidyverse)
+
+# Convert the table to long format for percentage plotting
+descriptive_table_pct_long <- descriptive_table %>%
+  select(Participant, ECG_pct, EDA_pct, FER_pct, SER_pct, Converging_pct) %>%
+  pivot_longer(cols = -Participant, names_to = "Modality", values_to = "Percentage") %>%
+  mutate(
+    Modality = str_replace(Modality, "_pct", ""),
+    Percentage = as.numeric(str_remove(Percentage, "%"))
+  )
+
+# Plot
+ggplot(descriptive_table_pct_long, aes(x = Participant, y = Percentage, fill = Modality)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  scale_fill_brewer(palette = "RdYlBu") +
+  labs(
+    title = "Percentage of Stress Detections per Modality by Participant",
+    x = "Participant",
+    y = "Percentage (%)",
+    fill = "Modality"
+  ) +
+  ylim(0, 100) +
+  theme_minimal(base_size = 14)
+
+#library(RColorBrewer)
+display.brewer.all()
+
+
+```
+
+```{r}
+descriptive_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  RR_ma = c(9, 8, 12, 10, 87, 6),
+  RR_ma_pct = c("9%", "8%", "10%", "9%", "97%", "7%"),
+  RR_bl = c(93, 46, 91, 22, 85, 11),
+  RR_bl_pct = c("88%", "44%", "81%", "19%", "94%", "12%"),
+  HR_bin = c(37, 13, 16, 23, 1, 75),
+  HR_bin_pct = c("35%", "12%", "14%", "20%", "1%", "83%"),
+  FER = c(38, 78, 80, 67, 19, 42),
+  FER_pct = c("36%", "74%", "71%", "59%", "21%", "47%"),
+  SER = c(50, 48, 38, 46, 35, 38),
+  SER_pct = c("48%", "46%", "34%", "41%", "39%", "42%")
+)
+
+# Print the table nicely
+descriptive_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>Count of Stress Detections Per Independent Stress Indicator Per Participant</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+descriptive_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),  
+  SCR_onset = c(37, 49, 39, 60, 30, 47),
+  SCR_onset_pct = c("35%", "47%", "35%", "53%", "33%", "52%"),
+  SCR_ma = c(26, 31, 17, 34, 17, 27),
+  SCR_ma_pct = c("25%", "30%", "15%", "30%", "19%", "30%"),
+  SCR_bl = c(13, 13, 10, 17, 16, 17),
+  SCR_bl_pct = c("12%", "12%", "95%", "15%", "18%", "19%"),
+  SCL_ma = c(25, 29, 17, 19, 15, 17),
+  SCL_ma_pct = c("24%", "28%", "15%", "17%", "17%", "19%")
+)
+
+# Print the table nicely
+descriptive_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>Count of Stress Detections Per Independent Stress Indicator Per Participant</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+descriptive_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)), 
+  SCL_ma_sus = c(25, 29, 18, 20, 15, 17),
+  SCL_ma_sus_pct = c("24%", "28%", "16%", "18%", "17%", "19%"),
+  SCL_bl_sus = c(9, 7, 10, 9, 10, 14),
+  SCL_bl_sus_pct = c("9%", "7%", "9%", "8%", "11%", "16%"),
+  FFT = c(27, 21, 38, 32, 32, 20),
+  FFT_pct = c("26%", "20%", "34%", "28%", "36%", "22%"),
+  EDA_peak = c(23, 33, 16, 37, 23, 29),
+  EDA_peak_pct = c("22%", "31%", "14%", "26%", "23%", "32%")
+)
+
+# Print the table nicely
+descriptive_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>Count of Stress Detections Per Independent Stress Indicator Per Participant</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+```
+
+```{r}
+#install.packages("ggthemes")
+#library(ggthemes)
+
+# Combine all tables into one wide-format table
+descriptive_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),  
+  RR_ma = c(9, 8, 12, 10, 87, 6),
+  RR_bl = c(93, 46, 91, 22, 85, 11),
+  HR_bin = c(37, 13, 16, 23, 1, 75),
+  FER = c(38, 78, 80, 67, 19, 42),
+  SER = c(50, 48, 38, 46, 35, 38),
+  SCR_onset = c(37, 49, 39, 60, 30, 47),
+  SCR_ma = c(26, 31, 17, 34, 17, 27),
+  SCR_bl = c(13, 13, 10, 17, 16, 17),
+  SCL_ma = c(25, 29, 17, 19, 15, 17),
+  SCL_ma_sus = c(25, 29, 18, 20, 15, 17),
+  SCL_bl_sus = c(9, 7, 10, 9, 10, 14),
+  FFT = c(27, 21, 38, 32, 32, 20),
+  EDA_peak = c(23, 33, 16, 37, 23, 29)
+)
+
+# Add a ModalityType column
+long_data <- descriptive_table %>%
+  pivot_longer(cols = -Participant, names_to = "Modality", values_to = "Count") %>%
+  mutate(ModalityType = case_when(
+    Modality %in% c("RR_ma", "RR_bl", "HR_bin") ~ "ECG",
+    Modality %in% c("SCR_onset", "SCR_ma", "SCR_bl", "SCL_ma", "SCL_ma_sus", "SCL_bl_sus", "FFT", "EDA_peak") ~ "EDA",
+    Modality %in% c("FER", "SER") ~ "Behavioral"
+  ))
+
+# Order participants
+long_data$Participant <- factor(long_data$Participant, levels = paste0("P", c(1, 2, 5, 6, 9, 10)))
+
+# Define colors
+modality_colors <- c(
+  # ECG - blues
+  "RR_ma" = "#1F77B4", "RR_bl" = "#2874A6", "HR_bin" = "#4DA6FF",
+  # EDA - oranges
+  "SCR_onset" = "#FF7F50", "SCR_ma" = "#FF8C00", "SCR_bl" = "#FFA500",
+  "SCL_ma" = "#FFB347", "SCL_ma_sus" = "#FF7043", "SCL_bl_sus" = "#FF6347",
+  "FFT" = "#FF4500", "EDA_peak" = "#E25822",
+  # Behavioral - greens
+  "FER" = "#556B2F", "SER" = "#6B8E23"
+)
+
+# Plot grouped by ModalityType
+ggplot(long_data, aes(x = Participant, y = Count, fill = Modality)) +
+  geom_col(aes(group = ModalityType), position = position_dodge2(preserve = "single", padding = 0.1), color = "black") +
+  scale_fill_manual(values = modality_colors) +
+  labs(
+    title = "Stress Detections by Independent Indicators per Participant",
+    x = "Participant",
+    y = "Detection Count",
+    fill = "Modality/Measure"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", size = 14)
+  )
+```
+
+```{r}
+descriptive_table_event <- data.frame(
+  Event = c("Baseline", "Introduction", "MAT", "SUCT", "Recovery", "Goodbye", "Other"), 
+  Converging = c(13, 7, 36, 7, 3, 0, 16),
+  Converging_pct = c("7%", "13%", "59%", "14%", "25%", "0%", "6.4%"),
+  ECG = c(1, 3, 49, 8, 0, 0, 19),
+  ECG_pct = c("1%", "5%", "80%", "16%", "0%", "0%", "8%"),
+  EDA = c(42, 27, 29, 17, 8, 0, 67),
+  EDA_pct = c("23%", "48%", "48%", "35%", "67%", "0%", "27%"),
+  FER = c(90, 32, 29, 17, 7, 29, 125),
+  FER_pct = c("48%", "57%", "48%", "58%", "92%", "32%", "50%"),
+  SER = c(97, 27, 30, 17, 5, 0, 79),
+  SER_pct = c("52%", "48%", "50%", "35%", "42%", "0%", "31%")
+)
+
+# Print the table nicely
+descriptive_table_event %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>Count of Stress Detections Per Independent Stress Indicator Per Event</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:ncol(descriptive_table_event), width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+```
+
+### Cohen's Kappa
+
+```{r}
+# Load required libraries
+#install.packages("knitr")
+#install.packages("kableExtra")
+#install.packages("gt")
+
+#library(dplyr)
+#library(knitr)
+#library(kableExtra)
+#library(gt)
+
+# Create table
+kappa_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  ECG_EDA = c(-0.02, 0.15, 0.16, 0.16, 0.15, -0.04),
+  ECG_FER = c(0.22, 0.04, -0.03, 0.08, -0.03, 0.11),
+  ECG_SER = c(0.14, -0.23, -0.02, 0.06, 0.25, -0.06),
+  EDA_FER = c(-0.17, 0.07, -0.04, -0.06, 0.01, 0.27),
+  EDA_SER = c(0.09, -0.06, 0.03, 0.15, 0.20, -0.06),
+  FER_SER = c(0.19, 0.12, -0.03, -0.11, 0.06, 0.06)
+)
+
+# Print the table nicely
+kappa_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>(a) Pairwise Cohen’s Kappa Values by Participant Across Modalities</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+# Create table
+kappa_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  PredefinedPOI_ECG = c(0.34, 0.44, 0.31, 0.24, 0.51, 0.29),
+  PredefinedPOI_EDA = c(0.10, 0.08, 0.24, 0.32, 0.02, 0.07),
+  PredefinedPOI_FER = c(0.10, 0.10, -0.05, 0.10, 0.15, 0.11),
+  PredefinedPOI_SER = c(-0.02, -0.02, 0.10, 0, 0.29, -0.22)
+)
+
+# Print the table nicely
+kappa_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>(b) Pairwise Cohen’s Kappa Values by Participant Across Modalities</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+    
+    
+# Create table
+kappa_table <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  SubjectiveStress_ECG = c(0.26, 0.16, 0.20, 0.28, 0.58, 0.40),
+  SubjectiveStress_EDA = c(0.01, 0, 0.24, 0.37, -0.02, -0.03),
+  SubjectiveStress_FER = c(0.14, -0.01, 0.02, 0.10, 0.17, 0.03),
+  SubjectiveStress_SER = c(0.11, 0.03, 0.05, 0.08, 0.23, -0.07)
+)
+
+# Print the table nicely
+kappa_table %>%
+  kable(
+    format = "html",
+    caption = "<span style='color:black;'>(c) Pairwise Cohen’s Kappa Values by Participant Across Modalities</span>"
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  column_spec(2:5, width = "1.5cm") %>%
+  row_spec(0, extra_css = "color: black; font-weight: bold;")
+
+```
+
+```{r}
+# Load libraries
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# Combine all three tables into one long-format dataframe
+kappa_all <- data.frame(
+  Participant = paste0("P", c(1, 2, 5, 6, 9, 10)),
+  ECG_EDA = c(-0.02, 0.15, 0.16, 0.16, 0.15, -0.04),
+  ECG_FER = c(0.22, 0.04, -0.03, 0.08, -0.03, 0.11),
+  ECG_SER = c(0.14, -0.23, -0.02, 0.06, 0.25, -0.06),
+  EDA_FER = c(-0.17, 0.07, -0.04, -0.06, 0.01, 0.27),
+  EDA_SER = c(0.09, -0.06, 0.03, 0.15, 0.20, -0.06),
+  FER_SER = c(0.19, 0.12, -0.03, -0.11, 0.06, 0.06),
+  Predef_ECG = c(0.34, 0.44, 0.31, 0.24, 0.51, 0.29),
+  Predef_EDA = c(0.10, 0.08, 0.24, 0.32, 0.02, 0.07),
+  Predef_FER = c(0.10, 0.10, -0.05, 0.10, 0.15, 0.11),
+  Predef_SER = c(-0.02, -0.02, 0.10, 0, 0.29, -0.22),
+  Subj_ECG = c(0.26, 0.16, 0.20, 0.28, 0.58, 0.40),
+  Subj_EDA = c(0.01, 0, 0.24, 0.37, -0.02, -0.03),
+  Subj_FER = c(0.14, -0.01, 0.02, 0.10, 0.17, 0.03),
+  Subj_SER = c(0.11, 0.03, 0.05, 0.08, 0.23, -0.07)
+)
+
+# Reshape to long format
+kappa_long <- kappa_all %>%
+  pivot_longer(-Participant, names_to = "Modality_Pair", values_to = "Kappa") %>%
+  mutate(Source = case_when(
+    grepl("^ECG|^EDA|^FER|^SER", Modality_Pair) ~ "Inter-Modality",
+    grepl("^Predef", Modality_Pair) ~ "Predefined POI",
+    grepl("^Subj", Modality_Pair) ~ "Subjective Stress"
+  ))
+
+# Clean names for display
+kappa_long$Modality_Pair <- gsub("Predef_", "POI–", kappa_long$Modality_Pair)
+kappa_long$Modality_Pair <- gsub("Subj_", "Self–", kappa_long$Modality_Pair)
+
+# Plot: heatmap
+ggplot(kappa_long, aes(x = Modality_Pair, y = Participant, fill = Kappa)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "darkred", mid = "orange", high = "darkgreen", midpoint = 0, limits = c(-0.3, 0.60)) +
+  facet_wrap(~Source, scales = "free_x", nrow = 1) +
+  labs(
+    title = "Cohen’s Kappa Agreement per Participant and Modality Pair",
+    x = "Modality Pair",
+    y = "Participant",
+    fill = "Kappa"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold")
+  )
+```
+
+### SDT
+
+```{r}
+# Create table
+sdt_data <- data.frame(
+  Participant = c("P1", "P1", "P1", "P1", "P1",
+                  "P2", "P2", "P2", "P2", "P2",
+                  "P5", "P5", "P5", "P5", "P5",
+                  "P6", "P6", "P6", "P6", "P6",
+                  "P9", "P9", "P9", "P9", "P9",
+                  "P10", "P10", "P10", "P10", "P10"),
+  Comparison = rep(c("Converging", "ECG", "EDA", "FER", "SER"), times = 6),
+  TP = c(12, 13, 9, 12, 16,   9, 8, 9, 19, 6,   6, 13, 15, 31, 18,   13, 9, 25, 29, 18,   8, 11, 7, 8, 16,   4, 7, 11, 14, 6),
+  FP = c(9, 18, 24, 26, 34,     10, 0, 27, 59, 39,     3, 0, 7, 49, 20,     4, 0, 17, 38, 28,     1, 0, 16, 11, 19,     4, 3, 23, 28, 32),
+  TN = c(74, 65, 59, 57, 49,  74, 84, 57, 25, 45,  64, 67, 60, 18, 47,  65, 69, 52, 31, 41,  63, 64, 48, 53, 45,  61, 62, 42, 37, 33),
+  FN = c(10, 9, 13, 10, 6,     12, 13, 12, 2, 12,     40, 33, 31, 15, 28,     31, 35, 19, 15, 26,     18, 15, 19, 18, 10,     21, 18, 14, 11, 19)
+)
+
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+sdt_summary <- sdt_data %>%
+  mutate(
+    Sensitivity = TP / (TP + FN),
+    Specificity = TN / (TN + FP),
+    F1 = 2 * TP / (2 * TP + FP + FN)
+  ) %>%
+  mutate(across(c(Sensitivity, Specificity, F1), round, 3)) %>%
+  select(Participant, Comparison, Sensitivity, Specificity, F1)
+
+sdt_summary %>%
+  kable(format = "html", caption = "<b>Table X.</b> Signal Detection Metrics (Sensitivity, Specificity, F1 Score) by Participant and Modality") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(2:5, width = "2.5cm")
+
+```
+
+## By Event
+
+```{r}
+freq_by_event <- per_20sec_all_binary %>%
+  group_by(Event_Group) %>%
+  summarise(across(all_of(comparison_vars),
+                   list(Freq = ~sum(. == 1, na.rm = TRUE),
+                        Perc = ~mean(. == 1, na.rm = TRUE) * 100),
+                   .names = "{.col}_{.fn}")) %>%
+  pivot_longer(
+    -Event_Group,
+    names_to = c("Method", "Metric"),
+    names_pattern = "^(.*)_(Freq|Perc)$"
+  ) %>%
+  group_by(Event_Group, Method, Metric) %>%
+  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Metric, values_from = value) %>%
+  arrange(Event_Group, desc(Perc))
+
+freq_by_event
+```
+
+### SDT
+
+```{r}
+# Create table
+sdt_data2 <- data.frame(
+  Participant = c("P1", "P1", "P1", "P1", "P1",
+                  "P2", "P2", "P2", "P2", "P2",
+                  "P5", "P5", "P5", "P5", "P5",
+                  "P6", "P6", "P6", "P6", "P6",
+                  "P9", "P9", "P9", "P9", "P9",
+                  "P10", "P10", "P10", "P10", "P10"),
+  Comparison = rep(c("Converging", "ECG", "EDA", "FER", "SER"), times = 6),
+  TP = c(6, 7, 3, 6, 7,   0, 1, 1, 2, 2,   2, 3, 5, 7, 4,   13, 9, 24, 26, 18,   5, 9, 4, 6, 11,   4, 7, 7, 10, 7),
+  FP = c(15, 23, 30, 32, 43,     18, 6, 35, 76, 46,     7, 10, 17, 73, 34,     4, 0, 18, 41, 28,     4, 2, 19, 13, 24,     4, 3, 27, 32, 31),
+  TN = c(81, 73, 66, 64, 53,  84, 96, 67, 26, 56,  97, 94, 87, 31, 70,  70, 74, 56, 33, 46,  69, 71, 54, 60, 49,  66, 67, 43, 38, 39),
+  FN = c(3, 2, 6, 3, 2,     3, 2, 2, 1, 1,     7, 6, 4, 2, 5,     26, 30, 15, 13, 21,     12, 8, 13, 11, 6,     16, 13, 13, 10, 13)
+)
+
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+sdt_summary2 <- sdt_data2 %>%
+  mutate(
+    Sensitivity = TP / (TP + FN),
+    Specificity = TN / (TN + FP),
+    F1 = 2 * TP / (2 * TP + FP + FN)
+  ) %>%
+  mutate(across(c(Sensitivity, Specificity, F1), round, 3)) %>%
+  select(Participant, Comparison, Sensitivity, Specificity, F1)
+
+sdt_summary2 %>%
+  kable(format = "html", caption = "<b>Table X.</b> Signal Detection Metrics (Sensitivity, Specificity, F1 Score) by Participant and Modality") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "condensed")) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(2:5, width = "2.5cm")
+
+```

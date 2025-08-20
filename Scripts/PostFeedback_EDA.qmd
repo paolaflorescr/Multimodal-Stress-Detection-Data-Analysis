@@ -1,0 +1,2292 @@
+---
+title: "EDA_analysis2"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(screenshot.force = TRUE)
+```
+
+```{r}
+# Install packages
+install.packages("tidyverse", dependencies = TRUE)
+install.packages("data.table")
+install.packages("dplyr")
+install.packages("signal")
+install.packages("plotly")
+install.packages("pracma")
+install.packages("ggpubr")
+install.packages("zoo")
+install.packages("webshot")
+
+# Download libraries
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(signal)
+library(plotly)
+library(pracma)
+library(ggpubr)
+library(zoo)
+library(webshot)
+```
+
+## Load data sets
+
+```{r}
+setwd("~/Desktop/R_docs")
+
+ECG_EDA01 <- fread("ECG_EDA01.csv")
+ECG_EDA02 <- fread("ECG_EDA02.csv")
+ECG_EDA05 <- fread("ECG_EDA05.csv")
+ECG_EDA06 <- fread("ECG_EDA06.csv")
+ECG_EDA09 <- fread("ECG_EDA09.csv")
+ECG_EDA10 <- fread("ECG_EDA10.csv")
+```
+
+## Isolate EDA data per participant
+
+```{r}
+# Remove EDA measure
+EDA01 <- ECG_EDA01 %>% dplyr::filter(Measure != "ECG")
+EDA02 <- ECG_EDA02 %>% dplyr::filter(Measure != "ECG")
+EDA05 <- ECG_EDA05 %>% dplyr::filter(Measure != "ECG")
+EDA06 <- ECG_EDA06 %>% dplyr::filter(Measure != "ECG")
+EDA09 <- ECG_EDA09 %>% dplyr::filter(Measure != "ECG")
+EDA10 <- ECG_EDA10 %>% dplyr::filter(Measure != "ECG")
+```
+
+## Add Index
+
+```{r}
+EDA01 <- EDA01 %>%
+  mutate(Index = row_number()) %>% 
+  select(Index, everything())
+
+EDA02 <- EDA02 %>%
+  mutate(Index = row_number()) %>%
+  select(Index, everything())
+
+EDA05 <- EDA05 %>%
+  mutate(Index = row_number()) %>%
+  select(Index, everything())
+
+EDA06 <- EDA06 %>%
+  mutate(Index = row_number()) %>%
+  select(Index, everything())
+
+EDA09 <- EDA09 %>%
+  mutate(Index = row_number()) %>%
+  select(Index, everything())
+
+EDA10 <- EDA10 %>%
+  mutate(Index = row_number()) %>%
+  select(Index, everything())
+```
+
+## Pre-processing Steps
+
+### Smoothing EDA (moving average) signal to reduce noise
+
+#### SCL baseline tracking (long-term trends)
+
+```{r}
+# Choose best window_sec size
+# Try 3 different windows
+EDA01 <- EDA01 %>%
+  mutate(
+    ma_1s = rollmean(Value, k = 200, fill = NA, align = "right"),
+    ma_2s = rollmean(Value, k = 400, fill = NA, align = "right"),
+    ma_5s = rollmean(Value, k = 1000, fill = NA, align = "right")
+  )
+
+# Plot to compare
+plot(EDA01$Timestamp, EDA01$Value, type = "l", col = "gray", main = "Smoothed EDA Signals")
+lines(EDA01$Timestamp, EDA01$ma_1s, col = "blue")
+lines(EDA01$Timestamp, EDA01$ma_2s, col = "green")
+lines(EDA01$Timestamp, EDA01$ma_5s, col = "red")
+legend("topright", legend = c("Raw", "1s", "2s", "5s"), col = c("gray", "blue", "green", "red"), lty = 1)
+
+EDA01 <- EDA01 %>%
+  select(-ma_1s, -ma_2s, -ma_5s)
+```
+
+```{r}
+# Setting up the parameters
+sampling_rate <- 200  # samples per second 
+window_sec <- 5       # smoothing window in seconds
+window_samples <- sampling_rate * window_sec  # number of samples in window
+
+# Apply moving average smoothing to raw EDA 'Value'
+
+EDA01 <- EDA01 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA02 <- EDA02 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA05 <- EDA05 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA06 <- EDA06 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA09 <- EDA09 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA10 <- EDA10 %>%
+  mutate(
+    ma_SCL = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+```
+
+#### SCR baseline tracking (spikes)
+
+```{r}
+# Setting up the parameters
+sampling_rate <- 200  # Hz
+window_sec <- 0.5     # 0.5-second smoothing window
+window_samples <- as.integer(sampling_rate * window_sec)  # 100 samples
+
+# Apply light smoothing
+EDA01 <- EDA01 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA02 <- EDA02 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA05 <- EDA05 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA06 <- EDA06 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA09 <- EDA09 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+
+EDA10 <- EDA10 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = window_samples, fill = NA, align = "right")
+  )
+```
+
+## Detect R-peaks with findpeaks()
+
+### Create the function detect_eda_peaks
+
+DELETE AFTER: 🔹 Support from literature:
+
+Many studies using **SD-based peak detection** or **z-scoring** set thresholds in the **0.5–1.0 range**. The 0.7 value performs well when: Using **detrended** and **smoothed** EDA; Aiming to detect **acute stress** without overflagging; Sampling rate is **high (e.g., 200 Hz)**, which can otherwise inflate noise –\> Filters moderate-to-large SCRs; balances sensitivity/specificity
+
+🔹 Why 5 seconds? Prevents **multiple peaks** from being counted during a single SCR event by enforcing a **refractory period** between peaks; SCRs have a **rise time** of \~1–3 sec and can take up to **5–10 seconds** to fully resolve; At 200 Hz, very short gaps (e.g., 1–2 sec = 200–400 samples) may double-count **sustained SCRs** or **artifacts**; 5 seconds (1000 samples) is a **conservative** but **safe** choice for clean separation.
+
+This function processes raw EDA data by smoothing the tonic component (SCL), detrending the signal, applying light smoothing for phasic responses (SCR), and detecting SCR peaks based on a standard deviation threshold. It returns a tibble with processed signal components and peak indicators.
+
+```{r}
+process_eda_signal <- function(eda_signal, timestamps, 
+                               fs = 200,                      # Hz
+                               scl_window_sec = 5,            # 5 sec smoothing (SCL)
+                               scr_window_sec = 0.5,          # 0.5 sec smoothing (SCR)
+                               scr_sd_multiplier = 0.7,       # SD threshold
+                               min_scr_gap_sec = 5) {         # Gap between SCRs
+  
+  # 1. Smooth for tonic SCL (moving average over 5 sec)
+  scl_window <- scl_window_sec * fs                           # 1000 samples
+  scl <- rollmean(eda_signal, k = scl_window, fill = NA, align = "right")
+
+  # 2. SCR detection: detrend using SCL, then lightly smooth detrended signal
+  detrended <- eda_signal - scl
+  scr_window <- scr_window_sec * fs                           # 100 samples
+  scr_smoothed <- rollmean(detrended, k = scr_window, fill = NA, align = "right")
+
+  # 3. Apply thresholding to detect SCR peaks
+  threshold <- sd(scr_smoothed, na.rm = TRUE) * scr_sd_multiplier
+  min_gap_samples <- min_scr_gap_sec * fs
+  
+  peaks <- rep(FALSE, length(eda_signal))
+  last_peak <- -Inf
+
+  for (i in seq_len(length(scr_smoothed))) {
+    if (!is.na(scr_smoothed[i]) &&
+        scr_smoothed[i] > threshold &&
+        (i - last_peak) > min_gap_samples) {
+      peaks[i] <- TRUE
+      last_peak <- i
+    }
+  }
+
+  # 4. Return tibble
+  tibble(
+    Time = timestamps,
+    Raw_EDA = eda_signal,
+    SCL = scl,
+    Detrended = detrended,
+    SCR_Smoothed = scr_smoothed,
+    SCR_Peak = peaks
+  )
+}
+```
+
+### Apply Peak Detection to the Participants
+
+#### Participant 1
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA01 <- EDA01 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA01$ma_SCR,
+  timestamps = EDA01$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.8,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA01 <- EDA01 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+
+# Step 4: Create dataset of only peaks
+EDA01_peaks <- EDA01 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA01$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA01$Timestamp, EDA01$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA01_peaks$Timestamp, EDA01_peaks$ma_SCR, col = "red", pch = 20)
+
+```
+
+#### Plot SCL + SCR Peaks
+
+Plotting SCL as a smooth line provides the reference level. Overlaying SCR peaks as points on that line shows when and where the fast responses happen relative to the baseline. If you plotted only SCRs (like just spike markers), you’d lose the overall context of the signal.
+
+```{r}
+zoom_start <- 650  
+zoom_end <- 850   
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA01 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("P1 Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+
+```
+
+#### Participant 02
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA02 <- EDA02 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA02$ma_SCR,
+  timestamps = EDA02$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.8,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA02 <- EDA02 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+# Step 4: Create dataset of only peaks
+EDA02_peaks <- EDA02 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA02$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA02$Timestamp, EDA02$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA02_peaks$Timestamp, EDA02_peaks$ma_SCR, col = "red", pch = 20)
+
+```
+
+#### Plot SCL + SCR Peaks
+
+```{r}
+zoom_start <- 750  
+zoom_end <- 1000    
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA02 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+
+```
+
+### Participant 05
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA05 <- EDA05 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA05$ma_SCR,
+  timestamps = EDA05$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.8,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA05 <- EDA05 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+# Step 4: Create dataset of only peaks
+EDA05_peaks <- EDA05 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA05$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA05$Timestamp, EDA05$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA05_peaks$Timestamp, EDA05_peaks$ma_SCR, col = "red", pch = 20)
+
+```
+
+#### Plot SCL + SCR Peaks
+
+```{r}
+# Plot the data
+zoom_start <- 750  
+zoom_end <- 1000    
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA05 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+```
+
+### Participant 06
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA06 <- EDA06 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA06$ma_SCR,
+  timestamps = EDA06$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.7,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA06 <- EDA06 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+# Step 4: Create dataset of only peaks
+EDA06_peaks <- EDA06 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA06$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA06$Timestamp, EDA06$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA06_peaks$Timestamp, EDA06_peaks$ma_SCR, col = "red", pch = 20)
+
+```
+
+#### Plot SCL + SCR Peaks
+
+```{r}
+# Plot the data
+zoom_start <- 750  
+zoom_end <- 1000    
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA06 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+```
+
+### Participant 09
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA09 <- EDA09 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA09$ma_SCR,
+  timestamps = EDA09$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.7,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA09 <- EDA09 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+# Step 4: Create dataset of only peaks
+EDA09_peaks <- EDA09 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA09$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA09$Timestamp, EDA09$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA09_peaks$Timestamp, EDA09_peaks$ma_SCR, col = "red", pch = 20)
+```
+
+#### Plot SCL + SCR Peaks
+
+```{r}
+# Plot the data
+zoom_start <- 750  
+zoom_end <- 1000    
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA09 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+```
+
+### Participant 10
+
+```{r}
+# Step 1: Smooth signal for SCR detection (0.5-second light smoothing)
+sampling_rate <- 200
+scr_smoothing_window <- as.integer(sampling_rate * 0.5)  # 100 samples
+
+EDA10 <- EDA10 %>%
+  mutate(
+    ma_SCR = rollmean(Value, k = scr_smoothing_window, fill = NA, align = "right")
+  )
+
+# Step 2: Apply process_eda_signal() with new parameters
+processed <- process_eda_signal(
+  eda_signal = EDA10$ma_SCR,
+  timestamps = EDA10$Timestamp,
+  fs = 200,
+  scl_window_sec = 5,        # SCL smoothing window
+  scr_window_sec = 10,       # SCR detection window
+  scr_sd_multiplier = 0.7,   # SCR threshold
+  min_scr_gap_sec = 5        # Min gap between SCRs
+)
+
+# Step 3: Add SCR peak info back to EDA01
+EDA10 <- EDA10 %>%
+  select(-any_of("IsPeak")) %>%  # safely remove IsPeak only if it exists
+  left_join(
+    processed %>% select(Time, SCR_Peak) %>% rename(IsPeak = SCR_Peak),
+    by = c("Timestamp" = "Time")
+  ) %>%
+  mutate(IsPeak = ifelse(is.na(IsPeak), 0, as.integer(IsPeak)))
+
+# Step 4: Create dataset of only peaks
+EDA10_peaks <- EDA10 %>% filter(IsPeak == 1)
+
+# Step 5: Check timestamp range
+timestamp_range <- range(EDA10$Timestamp, na.rm = TRUE)
+cat("Min time:", timestamp_range[1], "\n")
+cat("Max time:", timestamp_range[2], "\n")
+
+# Step 6: Plot
+plot(EDA10$Timestamp, EDA10$ma_SCR, type = "l", main = "EDA Signal with Detected Peaks", xlab = "Time (s)", ylab = "Smoothed EDA")
+points(EDA10_peaks$Timestamp, EDA10_peaks$ma_SCR, col = "red", pch = 20)
+```
+
+#### Plot SCL + SCR Peaks
+
+```{r}
+# Plot the data
+zoom_start <- 750  
+zoom_end <- 1000    
+
+# Create zoomed-in subset with peaks
+zoomed_data <- EDA10 %>% filter(Timestamp >= zoom_start & Timestamp <= zoom_end)
+
+# Extract peak points within zoom window
+zoomed_peaks <- zoomed_data %>% filter(IsPeak == 1)
+
+# Plot smoothed tonic EDA (ma_SCL) with peaks
+plot(zoomed_data$Timestamp, zoomed_data$ma_SCL,
+     type = "l", col = "blue", xlab = "Time (s)", ylab = "EDA (Smoothed SCL)",
+     main = paste("Smoothed EDA Signal with Peaks (Zoom:", zoom_start, "to", zoom_end, "s)"))
+
+points(zoomed_peaks$Timestamp, zoomed_peaks$ma_SCL,
+       col = "red", pch = 20)
+```
+
+## Differentiation of Points of Interest in EDA for both SCR and SCL
+
+### Using Moving Average Baseline + Percent Change
+
+The two codes calculate percent change in EDA using moving averages. The **SCR version** uses a 20-second window to capture fast, short-lived arousal spikes typical of phasic responses. The **SCL version** uses a 60-second window to reflect slower, tonic shifts. Both help identify significant changes from recent baseline levels.
+
+```{r}
+# Participant 1
+EDA01 <- EDA01 %>%
+  mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA01 <- EDA01 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+
+# Participant 2
+EDA02 <- EDA02 %>%
+  mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA02 <- EDA02 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+
+# Participant 5
+EDA05 <- EDA05 %>%
+ mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA05 <- EDA05 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+
+# Participant 6
+EDA06 <- EDA06 %>%
+  mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA06 <- EDA06 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+
+# Participant 9
+EDA09 <- EDA09 %>%
+  mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA09 <- EDA09 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+
+# Participant 10
+EDA10 <- EDA10 %>%
+  mutate(
+    SCR_ma_baseline = zoo::rollmean(ma_SCR, k = 200 * 20, fill = NA, align = "right"),  # 20-sec baseline
+    SCR_ma_change_pct = 100 * (ma_SCR - SCR_ma_baseline) / SCR_ma_baseline
+  )
+
+EDA10 <- EDA10 %>%
+  mutate(
+    SCL_ma_baseline = zoo::rollmean(ma_SCL, k = 200 * 60, fill = NA, align = "right"),  # 60-sec average
+    SCL_ma_change_pct = 100 * (ma_SCL - SCL_ma_baseline) / SCL_ma_baseline
+  )
+```
+
+#### Create the Binary Values for Moving Average Baseline USING Z-SCORES
+
+This code creates binary stress indicators based on how much the moving average percent change deviates from the participant’s typical EDA pattern. First, it converts the percent change values for both SCR (short-term arousal) and SCL (long-term arousal) into z-scores, which represent how many standard deviations each value is from the mean. Then, it flags stress (value = 1) when a z-score exceeds +1 —meaning the signal is at least one standard deviation higher than usual, suggesting a significant physiological shift.
+
+```{r}
+# Participant 1
+EDA01 <- EDA01 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA01 <- EDA01 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+# Participant 2
+EDA02 <- EDA02 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA02 <- EDA02 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+# Participant 5
+EDA05 <- EDA05 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA05 <- EDA05 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+# Participant 6
+EDA06 <- EDA06 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA06 <- EDA06 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+# Participant 9
+EDA09 <- EDA09 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA09 <- EDA09 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+# Participant 10
+EDA10 <- EDA10 %>%
+  mutate(
+    SCR_ma_change_z = (SCR_ma_change_pct - mean(SCR_ma_change_pct, na.rm = TRUE)) / sd(SCR_ma_change_pct, na.rm = TRUE),
+    SCR_ma_binary = ifelse(SCR_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+EDA10 <- EDA10 %>%
+  mutate(
+    SCL_ma_change_z = (SCL_ma_change_pct - mean(SCL_ma_change_pct, na.rm = TRUE)) / sd(SCL_ma_change_pct, na.rm = TRUE),
+    SCL_ma_binary = ifelse(SCL_ma_change_z >= 1, 1, 0)  # 1 SD threshold for stress
+  )
+
+plot(EDA01$Timestamp, EDA01$SCR_ma_change_pct, type = "l", main = "EDA01 SCR Exceeding 1 SD")
+points(EDA01$Timestamp[EDA01$SCR_ma_binary == 1], 
+       EDA01$SCR_ma_change_pct[EDA01$SCR_ma_binary == 1], 
+       col = "red", pch = 20)
+
+plot(EDA01$Timestamp, EDA01$SCL_ma_change_pct, type = "l", main = "EDA01 SCL Exceeding 1 SD")
+points(EDA01$Timestamp[EDA01$SCL_ma_binary == 1], 
+       EDA01$SCL_ma_change_pct[EDA01$SCL_ma_binary == 1], 
+       col = "red", pch = 20)
+
+```
+
+```{r}
+# Function to print counts and percentages for a binary column in a dataframe
+print_binary_percentages <- function(df, col_name) {
+  cat(paste0("Counts and percentages for ", col_name, ":\n"))
+  counts <- table(df[[col_name]])
+  total <- sum(counts)
+  percentages <- round(100 * counts / total, 2)
+  result <- data.frame(Count = counts, Percentage = percentages)
+  print(result)
+  cat("\n")
+}
+
+# Apply to your EDA01 dataset
+print_binary_percentages(EDA01, "SCR_ma_binary")
+print_binary_percentages(EDA01, "SCL_ma_binary")
+print_binary_percentages(EDA02, "SCR_ma_binary")
+print_binary_percentages(EDA02, "SCL_ma_binary")
+print_binary_percentages(EDA05, "SCR_ma_binary")
+print_binary_percentages(EDA05, "SCL_ma_binary")
+print_binary_percentages(EDA06, "SCR_ma_binary")
+print_binary_percentages(EDA06, "SCL_ma_binary")
+print_binary_percentages(EDA09, "SCR_ma_binary")
+print_binary_percentages(EDA09, "SCL_ma_binary")
+print_binary_percentages(EDA10, "SCR_ma_binary")
+print_binary_percentages(EDA10, "SCL_ma_binary")
+```
+
+### Rising Trend Detector Using Moving Average Baseline (SCR_onset) USING Z-SCORES
+
+This function detects acute stress onset by looking for a rising trend in the z-scored percent change of short-term SCR activity. It flags the start of a stress episode when the SCR signal increases compared to the previous value and exceeds a defined threshold (default = 0.7). Once stress is detected, it continues labeling until the signal starts to drop. This method works well for SCR because it captures fast, phasic shifts. SCL, by contrast, isn’t well-suited for onset detection since its slower, tonic changes lack sharp or time-locked increases.
+
+```{r}
+function_stress_onset <- function(df, pct_col = "SCR_ma_change_z", 
+                                 output_col = "SCR_onset", threshold = 0.7) {
+  stress_label <- integer(nrow(df))
+  in_stress <- FALSE
+  
+  pct_values <- df[[pct_col]]
+  
+  for (i in 2:length(pct_values)) {
+    if (!in_stress) {
+      if (!is.na(pct_values[i]) && !is.na(pct_values[i - 1]) &&
+          (pct_values[i] > pct_values[i - 1]) &&
+          (pct_values[i] >= threshold)) {
+        in_stress <- TRUE
+        stress_label[i] <- 1
+      }
+    } else {
+      stress_label[i] <- 1
+      if (!is.na(pct_values[i]) && !is.na(pct_values[i - 1]) &&
+          (pct_values[i] < pct_values[i - 1])) {
+        in_stress <- FALSE
+      }
+    }
+  }
+  
+  df[[output_col]] <- stress_label
+  return(df)
+}
+
+```
+
+#### Apply the Function to All Participants
+
+```{r}
+EDA01 <- function_stress_onset(EDA01, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+EDA02 <- function_stress_onset(EDA02, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+EDA05 <- function_stress_onset(EDA05, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+EDA06 <- function_stress_onset(EDA06, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+EDA09 <- function_stress_onset(EDA09, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+EDA10 <- function_stress_onset(EDA10, pct_col = "SCR_ma_change_z", output_col = "SCR_onset", threshold = 0.7)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_ma_change_z), color = "steelblue", size = 0.6) +
+  geom_point(aes(y = ifelse(SCR_onset == 1, SCR_ma_change_z, NA)),
+           color = "red", size = 2, alpha = 0.7) +
+labs(title = "P1 Stress Onset Detection Based on SCR Moving Average % Change (≥ 1 SD)",
+       x = "Time (s)",
+       y = "SCR (z-scored moving avg change)") +
+  theme_minimal()
+
+```
+
+#### Percentage of 1s and 0s
+
+```{r}
+percent_ones_zeros <- function(df, col) {
+  total <- nrow(df)
+  ones <- sum(df[[col]] == 1, na.rm = TRUE)
+  zeros <- sum(df[[col]] == 0, na.rm = TRUE)
+  nas <- sum(is.na(df[[col]]))
+  percent_ones <- ones / total * 100
+  percent_zeros <- zeros / total * 100
+  percent_nas <- nas / total * 100
+  return(data.frame(Percent_1s = percent_ones, Percent_0s = percent_zeros, Percent_NA = percent_nas))
+}
+
+
+# Apply to each dataset
+percent_ones_zeros(EDA01, "SCR_onset") # 1=0.97 0=99
+percent_ones_zeros(EDA02, "SCR_onset") # 1=1.2 0=98.8
+percent_ones_zeros(EDA05, "SCR_onset") # 1=0.48 0=99.5
+percent_ones_zeros(EDA06, "SCR_onset") # 1=0.82 0=99
+percent_ones_zeros(EDA09, "SCR_onset") # 1=0.72 0=99.3 
+percent_ones_zeros(EDA10, "SCR_onset") # 1=0 0=100
+
+```
+
+#### Create a new data set with stress onset data
+
+Marks the **start of a rising phase** and labels `1`s until the trend reverses. The labeled `1`s form **blocks** in your data → these are **stress events** (start to end of rising response).
+
+```{r}
+EDA01_stress_onset_SCR <- EDA01 %>%
+  filter(SCR_onset == 1)
+
+EDA02_stress_onset_SCR <- EDA02 %>%
+  filter(SCR_onset == 1)
+
+EDA05_stress_onset_SCR <- EDA05 %>%
+  filter(SCR_onset == 1)
+
+EDA06_stress_onset_SCR <- EDA06 %>%
+  filter(SCR_onset == 1)
+
+EDA09_stress_onset_SCR <- EDA09 %>%
+  filter(SCR_onset == 1)
+
+EDA10_stress_onset_SCR <- EDA10 %>%
+  filter(SCR_onset == 1)
+```
+
+### Sustained Stress based on SCL USING Z-SCORES
+
+This function detects sustained stress periods based on slow-changing SCL trends. It uses a rolling mean of the z-scored percent change in SCL (`SCL_ma_change_z`) over a minimum duration (e.g., 2 seconds) to smooth out noise. If the rolling average stays above a defined threshold (default = 0.10), the function flags that period as stress. This approach is well-suited to SCL because it captures prolonged arousal states rather than sharp spikes.
+
+```{r}
+function_ma_Sustained_stress_duration <- function(df,
+                                               pct_col = "SCL_ma_change_z",
+                                               output_col = "SCL_sustained",
+                                               sampling_rate = 200,
+                                               min_duration_sec = 2,
+                                               threshold = 0.10) {
+  window_size <- sampling_rate * min_duration_sec
+  z_values <- df[[pct_col]]  # use pct_col here
+  
+  rolling_mean <- zoo::rollmean(z_values, k = window_size, fill = NA, align = "right")
+  stress_label <- integer(length(z_values))
+  
+  in_stress <- FALSE
+  
+  for (i in seq_along(rolling_mean)) {
+    if (!in_stress) {
+      if (!is.na(rolling_mean[i]) && rolling_mean[i] >= threshold) {
+        in_stress <- TRUE
+        stress_label[i] <- 1
+      }
+    } else {
+      if (!is.na(rolling_mean[i]) && rolling_mean[i] >= threshold) {
+        stress_label[i] <- 1
+      } else {
+        in_stress <- FALSE
+      }
+    }
+  }
+  
+  df[[output_col]] <- stress_label
+  return(df)
+}
+```
+
+#### Apply the Function to All Participants
+
+This code applies a sustained stress detection function to the Participant SCL signal. It looks for periods where the z-scored change in SCL (`SCL_ma_change_z`) stays above a threshold of 1.0 for at least 2 seconds (based on a 200 Hz sampling rate). These periods are flagged as stress in a new column called `SCL_sustained`. The output includes both the count and percentage of time points marked as sustained stress vs. non-stress, helping assess how frequently this criterion is met.
+
+```{r}
+# Participant 1
+EDA01 <- function_ma_Sustained_stress_duration(
+  df = EDA01,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA01$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+# Participant 2
+EDA02 <- function_ma_Sustained_stress_duration(
+  df = EDA02,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA02$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+# Participant 5
+EDA05 <- function_ma_Sustained_stress_duration(
+  df = EDA05,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA05$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+# Participant 6
+EDA06 <- function_ma_Sustained_stress_duration(
+  df = EDA06,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA06$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+# Participant 9
+EDA09 <- function_ma_Sustained_stress_duration(
+  df = EDA09,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA09$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+# Participant 2
+EDA10 <- function_ma_Sustained_stress_duration(
+  df = EDA10,
+  pct_col = "SCL_ma_change_z",     # column with z-scored SCL changes
+  output_col = "SCL_sustained",    # new column to store stress labels
+  sampling_rate = 200,             # your data's sampling rate (Hz)
+  min_duration_sec = 2,            # minimum duration for sustained stress (seconds)
+  threshold = 1.0                 # threshold for z-scored SCL changes
+)
+
+# Check on how many stress episodes detected
+stress_counts <- table(EDA10$SCL_sustained)
+stress_percent <- prop.table(stress_counts) * 100
+
+# Print counts and percentages nicely
+cat("Counts of sustained stress labels:\n")
+print(stress_counts)
+cat("\nPercentages of sustained stress labels:\n")
+print(round(stress_percent, 2))
+
+```
+
+```{r}
+# Example assumes your data is in EDA01
+ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCL_ma_change_z), color = "steelblue", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCL_sustained == 1),
+    aes(y = SCL_ma_change_z),
+    color = "red", size = 1.5, alpha = 0.8
+  ) +
+  labs(
+    title = "P1 Sustained Stress Detection from SCL Signal",
+    x = "Time (s)",
+    y = "Z-scored % Change in SCL"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.title = element_text(size = 12)
+  )
+
+```
+
+#### Create a new data set with sustained stress data
+
+This dataset, `EDA01_stress_sustained_SCL`, contains **only the time points from Participant 1’s data** where **sustained stress** was detected based on SCL. Specifically, it filters rows where the `SCL_sustained` column equals `1`, meaning the SCL signal showed a **z-scored increase ≥ 1.0** sustained for **at least 2 seconds** (as defined in your stress detection function).
+
+In short, this dataset isolates **moments of prolonged physiological arousal** according to your **SCL-based sustained stress criterion**, making it useful for further inspection, visualization, or comparing with other stress indicators.
+
+```{r}
+EDA01_stress_sustained_SCL <- EDA01 %>%
+  filter(SCL_sustained == 1)
+
+EDA02_stress_sustained_SCL <- EDA02 %>%
+  filter(SCL_sustained == 1)
+
+EDA05_stress_sustained_SCL <- EDA05 %>%
+  filter(SCL_sustained == 1)
+
+EDA06_stress_sustained_SCL <- EDA06 %>%
+  filter(SCL_sustained == 1)
+
+EDA09_stress_sustained_SCL <- EDA09 %>%
+  filter(SCL_sustained == 1)
+
+EDA10_stress_sustained_SCL <- EDA10 %>%
+  filter(SCL_sustained == 1)
+```
+
+### Using baseline: Identifying the Differentiation % per Participant
+
+This code standardizes the SCR signal relative to a defined baseline period. It calculates the mean and standard deviation of the baseline, then z-scores the full signal to create `SCR_baseline_change_z`. Time points exceeding 1.5 standard deviations are flagged as stress events. The output includes a count of flagged points and a plot showing the z-scored signal with threshold and detected stress periods overlaid.
+
+#### Participant 01
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 161
+baseline1_end   <- 478
+baseline2_start <- 1371
+baseline2_end   <- 1665
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA01_baseline_z_scores <- EDA01 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA01_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA01_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA01 <- EDA01 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold (e.g., 1 SD above baseline)
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA01 <- EDA01 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA01_baseline_stress_events <- EDA01 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA01$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA01$OG_Timestamp, EDA01$SCR_baseline_change_z, type = "l",
+     main = "P1 SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA01$OG_Timestamp[EDA01$SCR_baseline_stress_binary == 1],
+       EDA01$SCR_baseline_change_z[EDA01$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+Checking whether SCR_ma_change_z is well-standardised.
+
+```{r}
+# Define your baseline time range
+baseline1_start <- 161
+baseline1_end   <- 478
+baseline2_start <- 1371
+baseline2_end   <- 1665
+
+# Filter the SCR_ma_change_z values during the baseline period
+baseline_z_scores <- EDA01 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(SCR_baseline_change_z)
+
+# Check mean and standard deviation
+mean_z <- mean(baseline_z_scores, na.rm = TRUE)
+sd_z   <- sd(baseline_z_scores, na.rm = TRUE)
+
+# Print results
+cat("Baseline mean of SCR_ma_change_z:", round(mean_z, 3), "\n")
+cat("Baseline SD of SCR_ma_change_z:  ", round(sd_z, 3), "\n")
+```
+
+#### Participant 02
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 161
+baseline1_end   <- 478
+baseline2_start <- 1371
+baseline2_end   <- 1665
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA02_baseline_z_scores <- EDA02 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA02_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA02_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA02 <- EDA02 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold (e.g., 1.5 SD above baseline)
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA02 <- EDA02 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA02_baseline_stress_events <- EDA02 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA02$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA02$OG_Timestamp, EDA02$SCR_baseline_change_z, type = "l",
+     main = "SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA02$OG_Timestamp[EDA02$SCR_baseline_stress_binary == 1],
+       EDA02$SCR_baseline_change_z[EDA02$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+#### Participant 05
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 156
+baseline1_end   <- 466
+baseline2_start <- 1368
+baseline2_end   <- 1657
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA05_baseline_z_scores <- EDA05 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA05_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA05_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA05 <- EDA05 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold (e.g., 1.5 SD above baseline)
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA05 <- EDA05 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA05_baseline_stress_events <- EDA05 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA05$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA05$OG_Timestamp, EDA05$SCR_baseline_change_z, type = "l",
+     main = "SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA05$OG_Timestamp[EDA05$SCR_baseline_stress_binary == 1],
+       EDA05$SCR_baseline_change_z[EDA05$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+#### Participant 06
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 156
+baseline1_end   <- 466
+baseline2_start <- 1368
+baseline2_end   <- 1657
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA06_baseline_z_scores <- EDA06 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA06_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA06_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA06 <- EDA06 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA06 <- EDA06 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA06_baseline_stress_events <- EDA06 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA06$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA06$OG_Timestamp, EDA06$SCR_baseline_change_z, type = "l",
+     main = "SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA06$OG_Timestamp[EDA06$SCR_baseline_stress_binary == 1],
+       EDA06$SCR_baseline_change_z[EDA06$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+#### Participant 09
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 161
+baseline1_end   <- 473
+baseline2_start <- 1580
+baseline2_end   <- 1879
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA09_baseline_z_scores <- EDA09 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA09_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA09_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA09 <- EDA09 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA09 <- EDA09 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA09_baseline_stress_events <- EDA09 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA09$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA09$OG_Timestamp, EDA09$SCR_baseline_change_z, type = "l",
+     main = "SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA09$OG_Timestamp[EDA09$SCR_baseline_stress_binary == 1],
+       EDA09$SCR_baseline_change_z[EDA09$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+#### Participant 10
+
+```{r}
+# Step 1: Define Baseline Windows (in seconds)
+baseline1_start <- 161
+baseline1_end   <- 473
+baseline2_start <- 1580
+baseline2_end   <- 1879
+
+# Step 2: Extract baseline SCR_baseline_change values
+EDA10_baseline_z_scores <- EDA10 %>%
+  filter((OG_Timestamp >= baseline1_start & OG_Timestamp <= baseline1_end) |
+         (OG_Timestamp >= baseline2_start & OG_Timestamp <= baseline2_end)) %>%
+  pull(ma_SCR)
+
+# Step 3: Compute baseline mean and standard deviation
+eda_baseline_mean <- mean(EDA10_baseline_z_scores, na.rm = TRUE)
+eda_baseline_sd   <- sd(EDA10_baseline_z_scores, na.rm = TRUE)
+
+# Step 4: Apply baseline-based z-score to full dataset
+EDA10 <- EDA10 %>%
+  mutate(SCR_baseline_change_z = (ma_SCR - eda_baseline_mean) / eda_baseline_sd)
+
+# Step 5: Define SD-based threshold
+sd_multiplier <- 0.7
+eda_threshold_sd <- sd_multiplier  # z-score threshold directly
+
+# Step 6: Add stress flag based on new z-score column
+EDA10 <- EDA10 %>%
+  mutate(
+    EDA_baseline_mean = eda_baseline_mean,
+    EDA_baseline_sd = eda_baseline_sd,
+    EDA_threshold_SD = eda_threshold_sd,
+    SCR_baseline_stress_binary = ifelse(SCR_baseline_change_z >= eda_threshold_sd, 1, 0)
+  )
+
+# Step 7: Create filtered dataset of flagged stress events
+EDA10_baseline_stress_events <- EDA10 %>%
+  filter(SCR_baseline_stress_binary == 1)
+
+# Step 8: Count number of stress flags
+flag_counts <- table(EDA10$SCR_baseline_stress_binary)
+print(flag_counts)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+# Step 9: Plot for visual check
+plot(EDA10$OG_Timestamp, EDA10$SCR_baseline_change_z, type = "l",
+     main = "SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA10$OG_Timestamp[EDA10$SCR_baseline_stress_binary == 1],
+       EDA10$SCR_baseline_change_z[EDA10$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+```
+
+### Label Sustained Stress Duration using Baseline Percent Change
+
+```{r}
+function_SCL_sustained_stress_z <- function(df, 
+                                     z_col = "SCL_baseline_change_z", 
+                                     sampling_rate = 200, 
+                                     min_duration_sec = 60, 
+                                     threshold = 0.7) {
+  
+  window_size <- sampling_rate * min_duration_sec
+  z_values <- df[[z_col]]
+  stress_label <- integer(length(z_values))
+  
+  in_stress <- FALSE
+  counter <- 0
+  
+  for (i in seq_along(z_values)) {
+    if (!in_stress) {
+      if (!is.na(z_values[i]) && z_values[i] >= threshold) {
+        counter <- counter + 1
+        if (counter >= window_size) {
+          stress_label[(i - window_size + 1):i] <- 1
+          in_stress <- TRUE
+        }
+      } else {
+        counter <- 0
+      }
+    } else {
+      if (!is.na(z_values[i]) && z_values[i] >= threshold) {
+        stress_label[i] <- 1
+      } else {
+        in_stress <- FALSE
+        counter <- 0
+      }
+    }
+  }
+  
+  df$SCL_baseline_sustained <- stress_label
+  return(df)
+}
+
+```
+
+#### Apply to Participant 1
+
+```{r}
+# Step 1: Define baseline windows and calculate baseline mean + SD
+baseline1 <- EDA01 %>% filter(OG_Timestamp >= 161 & OG_Timestamp <= 478)
+baseline2 <- EDA01 %>% filter(OG_Timestamp >= 1371 & OG_Timestamp <= 1665)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+
+# Step 2: Compute z-scores for the entire dataset
+EDA01 <- EDA01 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA01 <- function_SCL_sustained_stress_z(
+  df = EDA01,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA01$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+```
+
+```{r}
+ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCL_baseline_change_z), color = "black", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCL_baseline_sustained == 1),
+    aes(y = SCL_baseline_change_z),
+    color = "red", size = 1.5, alpha = 0.8
+  ) +
+  labs(
+    title = "P1 Sustained Stress Detection (≥60s) from SCL Baseline Z-scores",
+    x = "Time (s)",
+    y = "Z-scored % Change from Baseline (SCL)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title = element_text(size = 12)
+  )
+```
+
+#### Apply to Participant 2
+
+```{r}
+# Step 1: Define baseline windows and calculate baseline mean + SD
+baseline1 <- EDA02 %>% filter(OG_Timestamp >= 161 & OG_Timestamp <= 478)
+baseline2 <- EDA02 %>% filter(OG_Timestamp >= 1371 & OG_Timestamp <= 1665)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+
+# Step 2: Compute z-scores for the entire dataset
+EDA02 <- EDA02 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA02 <- function_SCL_sustained_stress_z(
+  df = EDA02,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA02$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+```
+
+#### Apply to Participant 5
+
+```{r}
+# Step 1: Calculate baseline mean from defined baseline windows
+baseline1 <- EDA05 %>% filter(OG_Timestamp >= 156 & OG_Timestamp <= 466)
+baseline2 <- EDA05 %>% filter(OG_Timestamp >= 1368 & OG_Timestamp <= 1657)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+
+# Step 2: Compute z-scores for the entire dataset
+EDA05 <- EDA05 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA05 <- function_SCL_sustained_stress_z(
+  df = EDA05,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA05$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+```
+
+#### Apply to Participant 6
+
+```{r}
+# Step 1: Calculate baseline mean from defined baseline windows
+baseline1 <- EDA06 %>% filter(OG_Timestamp >= 156 & OG_Timestamp <= 466)
+baseline2 <- EDA06 %>% filter(OG_Timestamp >= 1368 & OG_Timestamp <= 1657)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+# Step 2: Compute z-scores for the entire dataset
+EDA06 <- EDA06 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA06 <- function_SCL_sustained_stress_z(
+  df = EDA06,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA06$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+
+```
+
+#### Apply to Participant 9
+
+```{r}
+# Step 1: Calculate baseline mean from defined baseline windows
+baseline1 <- EDA09 %>% filter(OG_Timestamp >= 161 & OG_Timestamp <= 473)
+baseline2 <- EDA09 %>% filter(OG_Timestamp >= 1580 & OG_Timestamp <= 1879)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+
+# Step 2: Compute z-scores for the entire dataset
+EDA09 <- EDA09 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA09 <- function_SCL_sustained_stress_z(
+  df = EDA09,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA09$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+```
+
+#### Apply to Participant 10
+
+```{r}
+# Step 1: Calculate baseline mean from defined baseline windows
+baseline1 <- EDA10 %>% filter(OG_Timestamp >= 161 & OG_Timestamp <= 473)
+baseline2 <- EDA10 %>% filter(OG_Timestamp >= 1580 & OG_Timestamp <= 1879)
+
+scl_baseline_values <- as.numeric(c(baseline1$ma_SCL, baseline2$ma_SCL))
+scl_baseline_mean <- mean(scl_baseline_values, na.rm = TRUE)
+scl_baseline_sd   <- sd(scl_baseline_values, na.rm = TRUE)
+
+# Step 2: Compute z-scores for the entire dataset
+EDA10 <- EDA10 %>%
+  mutate(SCL_baseline_change_z = (ma_SCL - scl_baseline_mean) / scl_baseline_sd)
+
+# Step 3: Label sustained stress if z-score >= 0.7 for 60 seconds
+EDA10 <- function_SCL_sustained_stress_z(
+  df = EDA10,
+  z_col = "SCL_baseline_change_z",
+  sampling_rate = 200,
+  min_duration_sec = 60,
+  threshold = 0.7
+)
+
+# Count how many points were flagged
+flag_counts <- table(EDA10$SCL_baseline_sustained)
+flag_percentages <- prop.table(flag_counts) * 100
+print(round(flag_percentages, 2))
+```
+
+### Filter Sustained Stress Durations
+
+This dataset includes only the time points where sustained stress was detected based on baseline-corrected SCL levels. Specifically, it filters `EDA01` to keep rows where `SCL_baseline_sustained` equals 1, indicating periods where SCL remained elevated (based on z-scored deviation from baseline) for a minimum duration—suggesting a tonic stress response.
+
+```{r}
+EDA01_SCL_baseline_sustained <- EDA01 %>% filter(SCL_baseline_sustained == 1)
+EDA02_SCL_baseline_sustained <- EDA02 %>% filter(SCL_baseline_sustained == 1)
+EDA05_SCL_baseline_sustained <- EDA05 %>% filter(SCL_baseline_sustained == 1)
+EDA06_SCL_baseline_sustained <- EDA06 %>% filter(SCL_baseline_sustained == 1)
+EDA09_SCL_baseline_sustained <- EDA09 %>% filter(SCL_baseline_sustained == 1)
+EDA10_SCL_baseline_sustained <- EDA10 %>% filter(SCL_baseline_sustained == 1)
+```
+
+## FFT Measures
+
+### Create the function for FFT calculations
+
+This code computes the dominant frequency of the z-scored skin conductance response (SCR) signal using a Fast Fourier Transform (FFT) applied over rolling 10-second windows. It identifies the strongest frequency component in each window and labels periods as stress (`FFT_stress_flag = 1`) if the dominant frequency exceeds 0.5 Hz—a threshold associated with increased sympathetic arousal. This frequency-based method captures brief, phasic stress responses that may not be evident in amplitude-based metrics.
+
+window_sec = 2 step_sec = 0.5
+
+```         
+More sensitive to short bursts
+
+Better aligns with phasic SCR events (which typically last ~1–4 seconds)
+```
+
+```{r}
+apply_fft_rolling <- function(df, signal_col, sampling_rate = 200, 
+                              window_sec = 10, step_sec = 0.5) {
+  
+  window_size <- window_sec * sampling_rate
+  step_size <- step_sec * sampling_rate
+  n <- nrow(df)
+  
+  dominant_freqs <- rep(NA, n)
+  
+  for (start_idx in seq(1, n - window_size, by = step_size)) {
+    end_idx <- start_idx + window_size - 1
+    segment <- df[[signal_col]][start_idx:end_idx]
+    
+    if (any(is.na(segment))) {
+      # Skip window if NA
+      next
+    }
+    
+    # Detrend and apply Hanning window
+    segment <- segment - mean(segment)
+    segment <- segment * hanning(length(segment))
+    
+    fft_result <- abs(fft(segment))
+    freqs <- seq(0, sampling_rate / 2, length.out = length(fft_result) / 2 + 1)
+    power <- fft_result[1:(length(fft_result)/2 + 1)]
+    
+    dominant_idx <- which.max(power)
+    dominant_freqs[start_idx + floor(window_size / 2)] <- freqs[dominant_idx]
+    
+    # Debug print for first few iterations only
+    if (start_idx == 1 || start_idx == step_size * 2) {
+      print(paste("Window", start_idx, "dominant freq:", freqs[dominant_idx]))
+    }
+  }
+  
+  df$dominant_freq <- dominant_freqs
+  return(df)
+}
+
+function_participant_eda_fixed_threshold <- function(df, 
+                                                    signal_col = "ECG_signal", 
+                                                    sampling_rate = 200, 
+                                                    window_sec = 10, 
+                                                    step_sec = 0.5, 
+                                                    fixed_threshold = 0.25) {
+  # Apply rolling FFT analysis
+  df <- apply_fft_rolling(df, signal_col, sampling_rate, window_sec, step_sec)
+  
+  # Apply fixed frequency threshold
+  cat("Fixed frequency threshold: ", fixed_threshold, " Hz\n")
+  
+  # Classify stress based on dominant frequency
+  df <- df %>%
+    mutate(FFT_binary = ifelse(dominant_freq > fixed_threshold, 1, 0))
+  
+  # Print summary
+  cat("FFT-based stress flag counts:\n")
+  print(table(df$FFT_binary, useNA = "ifany"))
+  
+  cat("Percentages:\n")
+  print(round(prop.table(table(df$FFT_binary, useNA = "ifany")) * 100, 2))
+  
+  return(df)
+}
+
+```
+
+### Apply the FFT function to the Participants
+
+#### Participant 1
+
+```{r}
+# Step 2: Apply the function to EDA01
+EDA01 <- function_participant_eda_fixed_threshold(
+  EDA01,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA01$dominant_freq_scaled <- EDA01$dominant_freq * scale_factor
+
+ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "P1 EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+#### Participant 2
+
+```{r}
+# Step 2: Apply the function to EDA2
+EDA02 <- function_participant_eda_fixed_threshold(
+  EDA02,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA02$dominant_freq_scaled <- EDA02$dominant_freq * scale_factor
+
+ggplot(EDA02, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "P2 EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+#### Participant 5
+
+```{r}
+# Step 2: Apply the function to ECG01
+EDA05 <- function_participant_eda_fixed_threshold(
+  EDA05,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA05$dominant_freq_scaled <- EDA05$dominant_freq * scale_factor
+
+ggplot(EDA05, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "P5 EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+#### Participant 6
+
+```{r}
+# Step 2: Apply the function to ECG01
+EDA06 <- function_participant_eda_fixed_threshold(
+  EDA06,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA06$dominant_freq_scaled <- EDA06$dominant_freq * scale_factor
+
+ggplot(EDA06, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "P6 EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+#### Participant 9
+
+```{r}
+# Step 2: Apply the function to ECG01
+EDA09 <- function_participant_eda_fixed_threshold(
+  EDA09,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA09$dominant_freq_scaled <- EDA09$dominant_freq * scale_factor
+
+ggplot(EDA09, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+#### Participant 10
+
+```{r}
+# Step 2: Apply the function to ECG01
+EDA10 <- function_participant_eda_fixed_threshold(
+  EDA10,
+  signal_col = "SCR_baseline_change_z",
+  sampling_rate = 207,
+  window_sec = 7,
+  step_sec = 0.25,
+  fixed_threshold = 0.25
+)
+
+# Define scale factor outside
+scale_factor <- 5
+
+# Create scaled dominant frequency column
+EDA10$dominant_freq_scaled <- EDA10$dominant_freq * scale_factor
+
+ggplot(EDA10, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_baseline_change_z), color = "black", alpha = 0.5) +
+  geom_point(aes(y = dominant_freq_scaled, color = as.factor(FFT_binary)),
+             size = 1.5, alpha = 0.7, na.rm = TRUE) +
+  geom_vline(data = EDA01[EDA01$FFT_binary == 1, ],
+             aes(xintercept = Timestamp), color = "red", alpha = 0.05) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     labels = c("Relaxed", "Stress")) +
+  labs(title = "P1 EDA Signal with FFT-based Stress Labels",
+       y = "EDA Z-Score / Scaled Dominant Freq", color = "FFT Binary Label") +
+  theme_minimal()
+
+```
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+# (a) SCR_ma_change_pct with SCR_ma_binary overlay
+plot_a <- ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_ma_change_pct), color = "steelblue", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCR_ma_binary == 1),
+    aes(y = SCR_ma_change_pct),
+    color = "red", size = 1.5, alpha = 0.8
+  ) +
+  labs(
+    title = "(a) EDA01 SCR Exceeding 1 SD",
+    x = "Time (s)",
+    y = "% Change in SCR"
+  ) +
+  theme_minimal()
+
+# (b) SCL_ma_change_pct with SCL_ma_binary overlay
+plot_b <- ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCL_ma_change_pct), color = "steelblue", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCL_ma_binary == 1),
+    aes(y = SCL_ma_change_pct),
+    color = "red", size = 1.5, alpha = 0.8
+  ) +
+  labs(
+    title = "(b) EDA01 SCL Exceeding 1 SD",
+    x = "Time (s)",
+    y = "% Change in SCL"
+  ) +
+  theme_minimal()
+
+# (c) SCR moving average z-score with onset
+plot_c <- ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCR_ma_change_z), color = "steelblue", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCR_onset == 1),
+    aes(y = SCR_ma_change_z),
+    color = "red", size = 2, alpha = 0.7
+  ) +
+  labs(
+    title = "(c) SCR Moving Avg % Change (z) with Stress Onset",
+    x = "Time (s)",
+    y = "SCR z-score"
+  ) +
+  theme_minimal()
+
+# (d) SCL moving average z-score with sustained flag
+plot_d <- ggplot(EDA01, aes(x = Timestamp)) +
+  geom_line(aes(y = SCL_ma_change_z), color = "steelblue", linewidth = 0.6) +
+  geom_point(
+    data = subset(EDA01, SCL_sustained == 1),
+    aes(y = SCL_ma_change_z),
+    color = "red", size = 1.5, alpha = 0.8
+  ) +
+  labs(
+    title = "(d) SCL Moving Avg % Change (z) with Sustained Stress",
+    x = "Time (s)",
+    y = "SCL z-score"
+  ) +
+  theme_minimal()
+
+# Combine with patchwork
+combined_plot <- (plot_a + plot_b) / (plot_c + plot_d)
+
+# Print all 4 panels
+combined_plot
+
+
+# Set up 1 row, 2 columns layout
+par(mfrow = c(1, 2), mar = c(4, 4, 4, 2))
+
+```
+
+```{r}
+# Save to PNG with custom width and height
+png("SCR_facet_P1_P2.png", width = 1800, height = 800, res = 150)
+
+# Set up side-by-side layout
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))  # margins: bottom, left, top, right
+
+# (a) P1
+plot(EDA01$OG_Timestamp, EDA01$SCR_baseline_change_z, type = "l",
+     main = "P1 SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA01$OG_Timestamp[EDA01$SCR_baseline_stress_binary == 1],
+       EDA01$SCR_baseline_change_z[EDA01$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+mtext("(a)", side = 3, line = 1, adj = 0, cex = 1.2)
+
+# (b) P2
+plot(EDA02$OG_Timestamp, EDA02$SCR_baseline_change_z, type = "l",
+     main = "P2 SCR (Z) with SD-Based Threshold",
+     ylab = "SCR_baseline_change_z", xlab = "Time (s)")
+abline(h = eda_threshold_sd, col = "red", lty = 2)
+points(EDA02$OG_Timestamp[EDA02$SCR_baseline_stress_binary == 1],
+       EDA02$SCR_baseline_change_z[EDA02$SCR_baseline_stress_binary == 1],
+       col = "red", pch = 20)
+mtext("(b)", side = 3, line = 1, adj = 0, cex = 1.2)
+
+dev.off()
+
+```
+
+## Merge participants into an All_EDA
+
+```{r}
+# Add ParticipantID to each dataset
+EDA01 <- EDA01 %>% mutate(ParticipantID = "01")
+EDA02 <- EDA02 %>% mutate(ParticipantID = "02")
+EDA05 <- EDA05 %>% mutate(ParticipantID = "05")
+EDA06 <- EDA06 %>% mutate(ParticipantID = "06")
+EDA09 <- EDA09 %>% mutate(ParticipantID = "09")
+EDA10 <- EDA10 %>% mutate(ParticipantID = "10")
+
+# Merge all datasets
+All_EDA <- bind_rows(EDA01, EDA02, EDA05, EDA06, EDA09, EDA10)
+
+# Arrange and relocate ParticipantID
+All_EDA <- All_EDA_PostFeedback %>%
+  arrange(ParticipantID, Timestamp)
+
+
+All_EDA <- All_EDA %>%
+  relocate(ParticipantID, .after = OG_Timestamp)
+```
+
+## Save all data sets
+
+### EDA0X
+
+```{r}
+write.csv(EDA01, "EDA01.csv", row.names = FALSE)
+write.csv(EDA02, "EDA02.csv", row.names = FALSE)
+write.csv(EDA05, "EDA05.csv", row.names = FALSE)
+write.csv(EDA06, "EDA06.csv", row.names = FALSE)
+write.csv(EDA09, "EDA09.csv", row.names = FALSE)
+write.csv(EDA10, "EDA10.csv", row.names = FALSE)
+
+write.csv(All_EDA, "All_EDA_PostFeedback.csv", row.names = FALSE)
+```
+
+### EDA0X_peaks
+
+```{r}
+write.csv(EDA01_peaks, "EDA01_peaks.csv", row.names = FALSE)
+write.csv(EDA02_peaks, "EDA02_peaks.csv", row.names = FALSE)
+write.csv(EDA05_peaks, "EDA05_peaks.csv", row.names = FALSE)
+write.csv(EDA06_peaks, "EDA06_peaks.csv", row.names = FALSE)
+write.csv(EDA09_peaks, "EDA09_peaks.csv", row.names = FALSE)
+write.csv(EDA10_peaks, "EDA10_peaks.csv", row.names = FALSE)
+```
+
+### EDA0X_stress_points
+
+```{r}
+write.csv(EDA01_stress_pts, "EDA01_stress_points.csv", row.names = FALSE)
+write.csv(EDA02_stress_pts, "EDA02_stress_points.csv", row.names = FALSE)
+write.csv(EDA05_stress_pts, "EDA05_stress_points.csv", row.names = FALSE)
+write.csv(EDA06_stress_pts, "EDA06_stress_points.csv", row.names = FALSE)
+write.csv(EDA09_stress_pts, "EDA09_stress_points.csv", row.names = FALSE)
+write.csv(EDA10_stress_pts, "EDA10_stress_points.csv", row.names = FALSE)
+```
+
+### EDA0X_stress_events_baseline
+
+```{r}
+write.csv(EDA01_stress_events_baseline, "EDA01_stress_events_baseline.csv", row.names = FALSE)
+write.csv(EDA02_stress_events_baseline, "EDA02_stress_events_baseline.csv", row.names = FALSE)
+write.csv(EDA05_stress_events_baseline, "EDA05_stress_events_baseline.csv", row.names = FALSE)
+write.csv(EDA06_stress_events_baseline, "EDA06_stress_events_baseline.csv", row.names = FALSE)
+write.csv(EDA09_stress_events_baseline, "EDA09_stress_events_baseline.csv", row.names = FALSE)
+write.csv(EDA10_stress_events_baseline, "EDA10_stress_events_baseline.csv", row.names = FALSE)
+```
+
+### EDA0X_stress_episodes
+
+```{r}
+write.csv(EDA01_stress_episodes, "EDA01_stress_episodes.csv", row.names = FALSE)
+write.csv(EDA02_stress_episodes, "EDA02_stress_episodes.csv", row.names = FALSE)
+write.csv(EDA05_stress_episodes, "EDA05_stress_episodes.csv", row.names = FALSE)
+write.csv(EDA06_stress_episodes, "EDA06_stress_episodes.csv", row.names = FALSE)
+write.csv(EDA09_stress_episodes, "EDA09_stress_episodes.csv", row.names = FALSE)
+write.csv(EDA10_stress_episodes, "EDA10_stress_episodes.csv", row.names = FALSE)
+```
